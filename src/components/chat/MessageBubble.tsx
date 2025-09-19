@@ -2,8 +2,7 @@
 import React from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { formatMessageTimestamp } from '@/utils/chatUtils';
-import { type MessageWithAuthor } from '@/services/realtimeChatService';
+import { type MessageWithAuthor } from '@/services/fixedChatService';
 import { motion } from 'framer-motion';
 
 interface MessageBubbleProps {
@@ -41,13 +40,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               {message.author.display_name}
             </span>
             <span className="text-xs text-muted-foreground">
-              {formatMessageTimestamp(message.created_at)}
+              {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>
-            {message.edited_at && (
-              <Badge variant="secondary" className="text-xs">
-                edited
-              </Badge>
-            )}
           </div>
         )}
         
