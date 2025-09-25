@@ -1,0 +1,27 @@
+{
+  "recommendations": [
+    "ms-vscode.vscode-typescript-next",
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "bradlc.vscode-tailwindcss",
+    "supabase.vscode-supabase",
+    "eamodio.gitlens",
+    "github.vscode-pull-request-github",
+    "mtxr.sqltools",
+    "mtxr.sqltools-driver-pg",
+    "ms-mssql.mssql",
+    "redhat.vscode-yaml",
+    "ecmel.vscode-html-css",
+    "pranaygp.vscode-css-peek",
+    "humao.rest-client",
+    "rangav.vscode-thunder-client",
+    "alefragnani.project-manager",
+    "sleistner.vscode-fileutils",
+    "christian-kohler.path-intellisense",
+    "formulahendry.auto-rename-tag",
+    "yzhang.markdown-all-in-one",
+    "davidanson.vscode-markdownlint",
+    "pkief.material-icon-theme"
+  ]
+}
+
