@@ -56,7 +56,6 @@ export const EnhancedPostCreator: React.FC<EnhancedPostCreatorProps> = ({
     files: FileUploadItem[];
     location?: Location;
     visibility: 'public' | 'friends' | 'private';
-    hashtags: string[];
     mentions: string[];
   }) => {
     if (disabled) return;
@@ -77,7 +76,7 @@ export const EnhancedPostCreator: React.FC<EnhancedPostCreatorProps> = ({
         images: data.files.length > 0 ? data.files : undefined,
         location: data.location?.name || undefined,
         visibility: data.visibility,
-        tags: [...data.hashtags, ...data.mentions],
+        tags: [...data.mentions],
         mentions: data.mentions,
         post_type: data.files.length > 0 ? 'image' as const : 'text' as const
       };

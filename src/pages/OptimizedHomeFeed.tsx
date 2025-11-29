@@ -1,21 +1,29 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { EnhancedTopBar } from '@/components/layout/EnhancedTopBar';
 import { OptimizedPostsList } from '@/components/feed/OptimizedPostsList';
 import EnhancedFeedSidebar from '@/components/feed/EnhancedFeedSidebar';
 import { TrendingTopicsWidget } from '@/components/feed/TrendingTopicsWidget';
 import { CreatePostModal } from '@/components/posts/CreatePostModal';
 import { Button } from '@/components/ui/button';
-import { Plus, Filter, Sparkles } from 'lucide-react';
+import { Plus, Filter, Sparkles, X } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { optimizedPostsService } from '@/services/optimizedPostsService';
+import { PostsService } from '@/services/postsService';
+import { PostCard } from '@/components/posts/PostCard';
 
 const OptimizedHomeFeed: React.FC = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [filteredPosts, setFilteredPosts] = useState<any[]>([]);
+  const [isLoadingFiltered, setIsLoadingFiltered] = useState(false);
   const { toast } = useToast();
+  
+  const hashtagFilter = searchParams.get('hashtag');
 
   const handleCreatePost = async (postData: any) => {
     try {
@@ -42,6 +50,33 @@ const OptimizedHomeFeed: React.FC = () => {
   const handlePostCreated = () => {
     setRefreshTrigger(prev => prev + 1);
   };
+
+  const clearHashtagFilter = () => {
+    setSearchParams({});
+    setFilteredPosts([]);
+  };
+
+  // Load posts filtered by hashtag
+  useEffect(() => {
+    if (hashtagFilter) {
+      setIsLoadingFiltered(true);
+      PostsService.getPostsByHashtag(hashtagFilter)
+        .then(posts => {
+          setFilteredPosts(posts);
+        })
+        .catch(error => {
+          console.error('Error loading hashtag posts:', error);
+          toast({
+            title: "Error loading posts",
+            description: "Could not load posts with this hashtag.",
+            variant: "destructive"
+          });
+        })
+        .finally(() => {
+          setIsLoadingFiltered(false);
+        });
+    }
+  }, [hashtagFilter, refreshTrigger, toast]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -86,8 +121,54 @@ const OptimizedHomeFeed: React.FC = () => {
               </CardContent>
             </Card>
 
+            {/* Hashtag Filter Banner */}
+            {hashtagFilter && (
+              <Card className="bg-primary/10 border-primary/20">
+                <CardContent className="py-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="text-primary">
+                        #{hashtagFilter}
+                      </Badge>
+                      <span className="text-sm text-muted-foreground">
+                        Showing posts with this hashtag
+                      </span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearHashtagFilter}
+                      className="h-8 w-8 p-0"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Posts Feed */}
-            <OptimizedPostsList key={refreshTrigger} />
+            {hashtagFilter ? (
+              <div className="space-y-4">
+                {isLoadingFiltered ? (
+                  <Card className="p-6">
+                    <p className="text-center text-muted-foreground">Loading posts...</p>
+                  </Card>
+                ) : filteredPosts.length === 0 ? (
+                  <Card className="p-6">
+                    <p className="text-center text-muted-foreground">
+                      No posts found with #{hashtagFilter}
+                    </p>
+                  </Card>
+                ) : (
+                  filteredPosts.map(post => (
+                    <PostCard key={post.id} post={post} onPostUpdate={() => setRefreshTrigger(prev => prev + 1)} />
+                  ))
+                )}
+              </div>
+            ) : (
+              <OptimizedPostsList key={refreshTrigger} />
+            )}
           </div>
 
           {/* Right Sidebar */}

@@ -53,8 +53,7 @@ export const useOptimizedPosts = () => {
         is_saved: false,
         user_reaction: undefined,
         reactions: safeParseReactions(post.reactions),
-        hashtags: [],
-        mentions: [],
+,
         tags: post.tags || [],
         profiles: Array.isArray(post.profiles) ? post.profiles[0] : post.profiles || {
           id: post.user_id,
@@ -123,8 +122,7 @@ export const useOptimizedPosts = () => {
         is_saved: false,
         user_reaction: undefined,
         reactions: safeParseReactions(data.reactions),
-        hashtags: [],
-        mentions: [],
+,
         tags: data.tags || [],
         profiles: Array.isArray(data.profiles) ? data.profiles[0] : data.profiles || {
           id: data.user_id,

@@ -37,7 +37,7 @@ interface DeploymentConfig {
 // Environment detection
 const getEnvironment = (): 'development' | 'staging' | 'production' => {
   const hostname = window.location.hostname;
-  
+
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
     return 'development';
   } else if (hostname.includes('staging') || hostname.includes('preview')) {
@@ -122,7 +122,7 @@ const developmentConfig: DeploymentConfig = {
 // Get current configuration based on environment
 export const getDeploymentConfig = (): DeploymentConfig => {
   const env = getEnvironment();
-  
+
   switch (env) {
     case 'production':
       return productionConfig;
@@ -148,7 +148,7 @@ export const verifyDatabaseMigrations = async (): Promise<{
   try {
     // Check for required tables with proper typing
     const requiredTables = [
-      'profiles',
+      'user_profiles',
       'posts',
       'comments',
       'communities',
@@ -165,7 +165,7 @@ export const verifyDatabaseMigrations = async (): Promise<{
           .from(table)
           .select('id')
           .limit(1);
-        
+
         if (error) {
           result.errors.push(`Table ${table} not accessible: ${error.message}`);
           result.success = false;
@@ -204,7 +204,7 @@ export const verifyDatabaseMigrations = async (): Promise<{
 // CDN and static asset optimization
 export const optimizeStaticAssets = () => {
   const config = getDeploymentConfig();
-  
+
   if (!config.cdn.enabled) {
     return;
   }
@@ -239,7 +239,7 @@ export const optimizeStaticAssets = () => {
 // Performance monitoring setup
 export const setupPerformanceMonitoring = () => {
   const config = getDeploymentConfig();
-  
+
   if (!config.monitoring.performanceMonitoring) {
     return;
   }
@@ -258,12 +258,12 @@ export const setupPerformanceMonitoring = () => {
       const response = await originalFetch(...args);
       const endTime = performance.now();
       const duration = endTime - startTime;
-      
+
       // Log slow requests
       if (duration > 1000) {
         console.warn(`Slow API request: ${args[0]} took ${duration}ms`);
       }
-      
+
       return response;
     } catch (error) {
       const endTime = performance.now();
@@ -277,7 +277,7 @@ export const setupPerformanceMonitoring = () => {
 // Error tracking setup
 export const setupErrorTracking = () => {
   const config = getDeploymentConfig();
-  
+
   if (!config.monitoring.errorTracking) {
     return;
   }
@@ -298,14 +298,14 @@ export const setupErrorTracking = () => {
 // Initialize deployment configuration
 export const initializeDeployment = async () => {
   const config = getDeploymentConfig();
-  
+
   console.log(`Initializing CampuzBuzz in ${config.environment} mode`);
-  
+
   // Set up monitoring and optimization
   setupPerformanceMonitoring();
   setupErrorTracking();
   optimizeStaticAssets();
-  
+
   // Verify database migrations in production
   if (config.environment === 'production') {
     const migrationStatus = await verifyDatabaseMigrations();
@@ -315,7 +315,7 @@ export const initializeDeployment = async () => {
       console.log('Database migrations verified successfully');
     }
   }
-  
+
   return config;
 };
 

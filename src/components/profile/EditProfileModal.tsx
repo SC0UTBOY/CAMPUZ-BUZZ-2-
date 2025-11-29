@@ -9,9 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
-import { Camera } from 'lucide-react';
+import { Camera, X, Upload } from 'lucide-react';
 import { SecureForm } from '@/components/common/SecureForm';
 import { useRateLimit } from '@/hooks/useRateLimit';
+import { uploadAvatar, validateImageFile, updateProfileAvatar, deleteAvatar } from '@/services/profileService';
 
 interface UserProfile {
   id: string;
@@ -52,6 +53,9 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
     privacy: user.privacy
   });
   const [loading, setLoading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(user.avatar || null);
+  const [isUploading, setIsUploading] = useState(false);
   const { toast } = useToast();
 
   // Rate limiting for profile updates (max 5 updates per 10 minutes)
@@ -69,7 +73,46 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
     setLoading(true);
 
     try {
-      await onSave(formData);
+      let avatarUrl = user.avatar;
+
+      // Upload new avatar if file selected
+      if (selectedFile) {
+        setIsUploading(true);
+        try {
+          avatarUrl = await uploadAvatar(user.id, selectedFile);
+
+          // Update avatar_url in database
+          const { success, error } = await updateProfileAvatar(user.id, avatarUrl);
+          if (!success) {
+            throw error;
+          }
+        } catch (uploadError) {
+          console.error('Error uploading avatar:', uploadError);
+          toast({
+            title: "Error uploading avatar",
+            description: "Failed to upload profile picture. Please try again.",
+            variant: "destructive"
+          });
+          setIsUploading(false);
+          setLoading(false);
+          return;
+        } finally {
+          setIsUploading(false);
+        }
+      }
+
+      // If avatar was removed (previewUrl is null but user had avatar)
+      if (!previewUrl && user.avatar) {
+        // Delete old avatar from storage
+        await deleteAvatar(user.avatar);
+
+        // Update database to null
+        await updateProfileAvatar(user.id, null);
+        avatarUrl = undefined;
+      }
+
+      // Save other profile data
+      await onSave({ ...formData, avatar: avatarUrl });
       onClose();
       toast({
         title: "Profile updated successfully!",
@@ -96,25 +139,54 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
     }));
   };
 
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file
+    const validation = validateImageFile(file);
+    if (!validation.valid) {
+      toast({
+        title: "Invalid file",
+        description: validation.error,
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Set selected file and create preview
+    setSelectedFile(file);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setPreviewUrl(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveAvatar = () => {
+    setSelectedFile(null);
+    setPreviewUrl(null);
+  };
+
   const profileValidator = (data: any) => {
     const errors: string[] = [];
-    
+
     if (!data.name || data.name.trim().length < 1) {
       errors.push('Name is required');
     }
-    
+
     if (data.name && data.name.length > 100) {
       errors.push('Name cannot exceed 100 characters');
     }
-    
+
     if (data.bio && data.bio.length > 500) {
       errors.push('Bio cannot exceed 500 characters');
     }
-    
+
     // Check for potentially malicious content
     const dangerousPatterns = [/<script/i, /javascript:/i, /on\w+=/i];
     const allText = `${data.name} ${data.bio} ${data.major}`;
-    
+
     if (dangerousPatterns.some(pattern => pattern.test(allText))) {
       errors.push('Invalid characters detected');
     }
@@ -132,8 +204,8 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
           <DialogTitle>Edit Profile</DialogTitle>
         </DialogHeader>
 
-        <SecureForm 
-          onSubmit={handleSecureSubmit} 
+        <SecureForm
+          onSubmit={handleSecureSubmit}
           validationType="custom"
           customValidator={profileValidator}
           className="space-y-6"
@@ -142,20 +214,60 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
           <div className="flex flex-col items-center space-y-4">
             <div className="relative">
               <Avatar className="h-24 w-24">
-                <AvatarImage src={user.avatar} />
+                <AvatarImage src={previewUrl || undefined} />
                 <AvatarFallback className="text-2xl">{user.name?.charAt(0)}</AvatarFallback>
               </Avatar>
-              <Button
-                type="button"
-                size="sm"
-                className="absolute bottom-0 right-0 rounded-full h-8 w-8 p-0"
-              >
-                <Camera className="h-4 w-4" />
-              </Button>
+
+              {/* Upload Button */}
+              <label htmlFor="avatar-upload" className="absolute bottom-0 right-0 cursor-pointer">
+                <Button
+                  type="button"
+                  size="sm"
+                  className="rounded-full h-8 w-8 p-0"
+                  onClick={() => document.getElementById('avatar-upload')?.click()}
+                >
+                  <Camera className="h-4 w-4" />
+                </Button>
+              </label>
+
+              {/* Remove Button */}
+              {previewUrl && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="destructive"
+                  className="absolute -top-2 -right-2 rounded-full h-6 w-6 p-0"
+                  onClick={handleRemoveAvatar}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              )}
             </div>
-            <p className="text-sm text-muted-foreground">
-              Click to change profile picture
-            </p>
+
+            {/* Hidden file input */}
+            <input
+              id="avatar-upload"
+              type="file"
+              accept="image/jpeg,image/jpg,image/png,image/webp"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+
+            <div className="text-center">
+              <p className="text-sm text-muted-foreground">
+                {selectedFile ? (
+                  <span className="flex items-center gap-2 text-green-600">
+                    <Upload className="h-4 w-4" />
+                    New photo selected
+                  </span>
+                ) : (
+                  'Click camera icon to upload'
+                )}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                JPG, PNG, or WebP • Max 5MB
+              </p>
+            </div>
           </div>
 
           {/* Basic Information */}
@@ -207,8 +319,8 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label htmlFor="department">Department</Label>
-              <Select 
-                value={formData.department} 
+              <Select
+                value={formData.department}
                 onValueChange={(value) => setFormData(prev => ({ ...prev, department: value }))}
               >
                 <SelectTrigger>
@@ -239,8 +351,8 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
 
             <div className="space-y-2">
               <Label htmlFor="year">Year</Label>
-              <Select 
-                value={formData.year} 
+              <Select
+                value={formData.year}
                 onValueChange={(value) => setFormData(prev => ({ ...prev, year: value }))}
               >
                 <SelectTrigger>
@@ -260,7 +372,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
           {/* Privacy Settings */}
           <div className="space-y-4">
             <h3 className="text-lg font-medium">Privacy Settings</h3>
-            
+
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -304,14 +416,14 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
           </div>
 
           <div className="flex justify-end space-x-2 pt-4">
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button type="button" variant="outline" onClick={onClose} disabled={loading || isUploading}>
               Cancel
             </Button>
-            <Button 
-              type="submit" 
-              disabled={loading || isBlocked}
+            <Button
+              type="submit"
+              disabled={loading || isBlocked || isUploading}
             >
-              {loading ? 'Saving...' : 'Save Changes'}
+              {isUploading ? 'Uploading...' : loading ? 'Saving...' : 'Save Changes'}
             </Button>
           </div>
         </SecureForm>

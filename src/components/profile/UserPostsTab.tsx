@@ -6,7 +6,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useUserPosts } from '@/hooks/useUserPosts';
 import { formatDistanceToNow } from 'date-fns';
 import { MessageSquare, Heart, Image, Video, FileText } from 'lucide-react';
-import RobustHashtagMentionText from '@/components/common/RobustHashtagMentionText';
 
 interface UserPostsTabProps {
   userId?: string;
@@ -86,9 +85,9 @@ export const UserPostsTab: React.FC<UserPostsTabProps> = ({ userId }) => {
             </p>
           </CardHeader>
           <CardContent>
-            <div className="text-sm mb-3 line-clamp-3">
-              <RobustHashtagMentionText text={post.content} />
-            </div>
+            <p className="text-sm mb-3 line-clamp-3">
+              {post.content}
+            </p>
             {post.image_url && (
               <img 
                 src={post.image_url} 

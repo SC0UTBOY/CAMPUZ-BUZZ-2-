@@ -108,6 +108,42 @@
   html.loading * {
     transition: none !important;
   }
+  
+  /* AGGRESSIVE MOBILE ZOOM PREVENTION */
+  html, body {
+    touch-action: none !important;
+    overscroll-behavior: none !important;
+    -webkit-user-drag: none !important;
+    -webkit-touch-callout: none !important;
+    -webkit-text-size-adjust: 100% !important;
+    -ms-text-size-adjust: 100% !important;
+    text-size-adjust: 100% !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Block zoom on media elements */
+  img, video, canvas {
+    touch-action: none !important;
+    -webkit-user-drag: none !important;
+  }
+  
+  /* Allow pan-y (vertical scrolling) but prevent zoom */
+  * {
+    touch-action: pan-y !important;
+    -webkit-user-drag: none !important;
+  }
+  
+  /* Prevent double-tap zoom on all interactive elements */
+  button, a, input, textarea, select {
+    touch-action: manipulation !important;
+  }
+  
+  /* Main app wrapper - prevent zoom */
+  #root {
+    -webkit-text-size-adjust: 100% !important;
+    overscroll-behavior: none !important;
+    touch-action: pan-y !important;
+  }
 }
 
 /* PWA and Mobile Specific Styles */
@@ -251,25 +287,25 @@
   display: none;
 }
 
-/* Twitter-like hashtag and mention styling */
-@layer components {
-  .hashtag-link {
-    @apply text-blue-500 hover:text-blue-600 hover:underline cursor-pointer font-medium transition-colors duration-200;
-  }
-  
-  .mention-link {
-    @apply text-blue-500 hover:text-blue-600 hover:underline cursor-pointer font-medium transition-colors duration-200;
-  }
-  
-  /* Focus styles for accessibility */
-  .hashtag-link:focus,
-  .mention-link:focus {
-    @apply outline-none ring-2 ring-blue-500 ring-offset-2 rounded-sm;
-  }
-  
-  /* Dark mode adjustments */
-  .dark .hashtag-link,
-  .dark .mention-link {
-    @apply text-blue-400 hover:text-blue-300;
-  }
+/* Hashtag and Mention Styles */
+.hashtag {
+  color: #0095F6;
+  font-weight: 500;
+  cursor: pointer;
+  transition: text-decoration 0.2s ease;
+}
+
+.hashtag:hover {
+  text-decoration: underline;
+}
+
+.mention {
+  color: #0095F6;
+  font-weight: 500;
+  cursor: pointer;
+  transition: text-decoration 0.2s ease;
+}
+
+.mention:hover {
+  text-decoration: underline;
 }

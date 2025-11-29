@@ -6,13 +6,13 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { fixedChatService } from '@/services/fixedChatService';
+import { createGroupRoom } from '@/features/chat/chatApi';
 import { useToast } from '@/hooks/use-toast';
 
 interface CreateRoomModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onRoomCreated: () => void;
+  onRoomCreated: (roomId: string) => void;
 }
 
 export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({
@@ -32,18 +32,22 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({
 
     try {
       setIsLoading(true);
-      await fixedChatService.createRoom(name.trim(), description.trim(), isPrivate);
-      
+      const room = await createGroupRoom({
+        name: name.trim(),
+        description: description.trim() || undefined,
+        isPrivate,
+      });
+
       toast({
         title: "Room created!",
         description: `Successfully created "${name}"`
       });
-      
+
       setName('');
       setDescription('');
       setIsPrivate(false);
       onOpenChange(false);
-      onRoomCreated();
+      onRoomCreated(room.id);
     } catch (error) {
       console.error('Failed to create room:', error);
       toast({
@@ -60,54 +64,54 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Create New Chat Room</DialogTitle>
+          <DialogTitle>Create New Group</DialogTitle>
         </DialogHeader>
-        
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <Label htmlFor="name">Room Name</Label>
+            <Label htmlFor="name">Group Name</Label>
             <Input
               id="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Enter room name..."
+              placeholder="Enter group name..."
               maxLength={100}
               required
             />
           </div>
-          
+
           <div>
             <Label htmlFor="description">Description (optional)</Label>
             <Textarea
               id="description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="What's this room about?"
+              placeholder="What's this group about?"
               maxLength={500}
               rows={3}
             />
           </div>
-          
+
           <div className="flex items-center space-x-2">
             <Switch
               id="private"
               checked={isPrivate}
               onCheckedChange={setIsPrivate}
             />
-            <Label htmlFor="private">Private room</Label>
+            <Label htmlFor="private">Private group</Label>
           </div>
-          
+
           <div className="flex justify-end space-x-2 pt-4">
-            <Button 
-              type="button" 
-              variant="outline" 
+            <Button
+              type="button"
+              variant="outline"
               onClick={() => onOpenChange(false)}
               disabled={isLoading}
             >
               Cancel
             </Button>
             <Button type="submit" disabled={!name.trim() || isLoading}>
-              {isLoading ? 'Creating...' : 'Create Room'}
+              {isLoading ? 'Creating...' : 'Create Group'}
             </Button>
           </div>
         </form>

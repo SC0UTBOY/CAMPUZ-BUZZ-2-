@@ -68,7 +68,7 @@ export const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
 
         {/* Actions */}
         <div className="flex items-center space-x-2">
-          {/* Notification Bell */}
+          {/* Notifications */}
           <NotificationBell />
 
           {/* Messages */}

@@ -29,7 +29,7 @@ export const CommentForm: React.FC<CommentFormProps> = ({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       handleSubmit(e as any);
     }
@@ -64,7 +64,7 @@ export const CommentForm: React.FC<CommentFormProps> = ({
         
         <div className="flex items-center justify-between">
           <div className="text-xs text-muted-foreground">
-            Press Enter to post, Shift+Enter for new line
+            Press Cmd/Ctrl + Enter to post quickly
           </div>
           
           <Button 

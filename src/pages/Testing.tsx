@@ -8,19 +8,6 @@ import { ProfileTestRunner } from '@/components/testing/ProfileTestRunner';
 import { SecurityTestRunner } from '@/components/testing/SecurityTestRunner';
 import { ErrorHandlingTestRunner } from '@/components/testing/ErrorHandlingTestRunner';
 import { UsabilityTestRunner } from '@/components/testing/UsabilityTestRunner';
-import { HashtagMentionTest } from '@/components/common/HashtagMentionTest';
-import { HashtagMentionDemo } from '@/components/common/HashtagMentionDemo';
-import { HashtagMentionSummary } from '@/components/common/HashtagMentionSummary';
-import { LikeButtonTest } from '@/components/common/LikeButtonTest';
-import { SimpleLikeTest } from '@/components/common/SimpleLikeTest';
-import { CommentTest } from '@/components/common/CommentTest';
-import { CommentDemo } from '@/components/common/CommentDemo';
-import { CommentSchemaTest } from '@/components/common/CommentSchemaTest';
-import { CommentRelationshipTest } from '@/components/common/CommentRelationshipTest';
-import { CommentsProfileTest } from '@/components/common/CommentsProfileTest';
-import { CommentDebugTest } from '@/components/common/CommentDebugTest';
-import { CommentLikesRepliesTest } from '@/components/common/CommentLikesRepliesTest';
-import { DatabaseSchemaTest } from '@/components/common/DatabaseSchemaTest';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export const Testing = () => {
@@ -37,7 +24,7 @@ export const Testing = () => {
         </div>
         
         <Tabs defaultValue="auth" className="w-full">
-        <TabsList className="grid w-full grid-cols-11">
+        <TabsList className="grid w-full grid-cols-9">
           <TabsTrigger value="auth">Authentication</TabsTrigger>
           <TabsTrigger value="posts">Post Creation</TabsTrigger>
           <TabsTrigger value="interactions">Post Interactions</TabsTrigger>
@@ -47,9 +34,6 @@ export const Testing = () => {
           <TabsTrigger value="security">Security</TabsTrigger>
           <TabsTrigger value="errors">Error Handling</TabsTrigger>
           <TabsTrigger value="usability">Usability</TabsTrigger>
-          <TabsTrigger value="hashtags">Hashtags & Mentions</TabsTrigger>
-          <TabsTrigger value="likes">Like Button</TabsTrigger>
-          <TabsTrigger value="comments">Comments</TabsTrigger>
         </TabsList>
           
           <TabsContent value="auth" className="mt-6">
@@ -86,28 +70,6 @@ export const Testing = () => {
 
           <TabsContent value="usability" className="mt-6">
             <UsabilityTestRunner />
-          </TabsContent>
-
-          <TabsContent value="hashtags" className="mt-6 space-y-6">
-            <HashtagMentionSummary />
-            <HashtagMentionDemo />
-            <HashtagMentionTest />
-          </TabsContent>
-
-          <TabsContent value="likes" className="mt-6 space-y-6">
-            <SimpleLikeTest />
-            <LikeButtonTest />
-          </TabsContent>
-
-          <TabsContent value="comments" className="mt-6 space-y-6">
-            <DatabaseSchemaTest />
-            <CommentLikesRepliesTest />
-            <CommentDebugTest />
-            <CommentsProfileTest />
-            <CommentRelationshipTest />
-            <CommentSchemaTest />
-            <CommentDemo />
-            <CommentTest />
           </TabsContent>
         </Tabs>
       </div>

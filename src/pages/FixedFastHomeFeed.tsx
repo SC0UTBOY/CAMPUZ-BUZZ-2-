@@ -1,7 +1,7 @@
 import React, { memo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { FastLoader, FastSkeletonPost } from '@/components/common/FastLoader';
-import { useSimplePosts } from '@/hooks/useSimplePosts';
+import { useFastPosts } from '@/hooks/useFastPosts';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -9,12 +9,54 @@ import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
 import { Heart, MessageCircle, Share2, Trash2, MoreHorizontal } from 'lucide-react';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { FixedDuplicateLikeButton } from '@/components/posts/FixedDuplicateLikeButton';
 import RobustHashtagMentionText from '@/components/common/RobustHashtagMentionText';
+import { useWorkingLikes } from '@/hooks/useWorkingLikes';
 import { useFixedComments } from '@/hooks/useFixedComments';
 import { cn } from '@/lib/utils';
 
+// Fixed Like Button Component
+const FixedLikeButton = memo(({ 
+  postId, 
+  initialLiked, 
+  initialCount, 
+  onLike 
+}: { 
+  postId: string; 
+  initialLiked: boolean; 
+  initialCount: number; 
+  onLike: (postId: string) => void;
+}) => {
+  const { getLikeState, isLiking } = useWorkingLikes();
+  const likeState = getLikeState(postId, initialLiked, initialCount);
+  
+  const handleClick = () => {
+    onLike(postId);
+  };
+
+  return (
+    <Button 
+      variant="ghost" 
+      size="sm" 
+      className={cn(
+        "h-8 px-2 transition-colors",
+        likeState.isLiked && "text-red-500 hover:text-red-600",
+        !likeState.isLiked && "text-muted-foreground hover:text-red-500"
+      )}
+      onClick={handleClick}
+      disabled={likeState.isLoading || isLiking(postId)}
+    >
+      <Heart className={cn(
+        "h-4 w-4 mr-1 transition-all",
+        likeState.isLiked && "fill-current",
+        likeState.isLoading && "animate-pulse"
+      )} />
+      <span className="text-xs">{likeState.count}</span>
+      {likeState.isLoading && (
+        <div className="ml-1 w-2 h-2 bg-current rounded-full animate-pulse" />
+      )}
+    </Button>
+  );
+});
 
 // Fixed Comments Section Component
 const FixedCommentsSection = memo(({ postId }: { postId: string }) => {
@@ -171,91 +213,28 @@ const FixedCommentsSection = memo(({ postId }: { postId: string }) => {
   );
 });
 
-
 // Fixed Post Card Component
 const FixedPostCard = memo(({ post }: { post: any }) => {
-  const { likePost, deletePost, isLiking, isDeleting } = useSimplePosts();
+  const { toggleLike } = useWorkingLikes();
   const [showComments, setShowComments] = useState(false);
-  const { user } = useAuth();
   
-  // Safety check - return null if post is invalid
-  if (!post || !post.id) {
-    return null;
-  }
-  
-  const handleLike = async (postId: string) => {
-    await likePost(postId);
+  const handleLike = (postId: string) => {
+    toggleLike(postId);
   };
-
-  const handleDelete = async () => {
-    if (!user || user.id !== post.user_id) return;
-    
-    try {
-      await deletePost(post.id);
-    } catch (error) {
-      console.error('Error deleting post:', error);
-    }
-  };
-
-  const isOwnPost = user?.id === post.user_id;
 
   return (
     <Card className="p-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          <Avatar className="h-10 w-10">
-            <AvatarImage src={post.profiles?.avatar_url} />
-            <AvatarFallback>{post.profiles?.display_name?.[0] || post.author?.display_name?.[0] || 'U'}</AvatarFallback>
-          </Avatar>
-          <div>
-            <h4 className="font-semibold text-sm">{post.profiles?.display_name || post.author?.display_name || 'Unknown User'}</h4>
-            <p className="text-xs text-muted-foreground">
-              {new Date(post.created_at).toLocaleDateString()}
-            </p>
-          </div>
+      <div className="flex items-center space-x-3">
+        <Avatar className="h-10 w-10">
+          <AvatarImage src={post.author.avatar_url} />
+          <AvatarFallback>{post.author.display_name?.[0] || 'U'}</AvatarFallback>
+        </Avatar>
+        <div>
+          <p className="font-semibold text-sm">{post.author.display_name}</p>
+          <p className="text-xs text-muted-foreground">
+            {new Date(post.created_at).toLocaleDateString()}
+          </p>
         </div>
-        
-        {/* Delete Button - Only show for post owner */}
-        {isOwnPost && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <DropdownMenuItem 
-                    className="text-red-600 focus:text-red-600 cursor-pointer"
-                    onSelect={(e) => e.preventDefault()}
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete Post
-                  </DropdownMenuItem>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Delete Post</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Are you sure you want to delete this post? This action cannot be undone.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={handleDelete}
-                      disabled={isDeleting}
-                      className="bg-red-600 hover:bg-red-700"
-                    >
-                      {isDeleting ? 'Deleting...' : 'Delete'}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
       </div>
       
       <div className="space-y-3">
@@ -274,12 +253,11 @@ const FixedPostCard = memo(({ post }: { post: any }) => {
         
         <div className="flex items-center justify-between pt-2 border-t">
           <div className="flex items-center space-x-4">
-            <FixedDuplicateLikeButton
+            <FixedLikeButton
               postId={post.id}
               initialLiked={post.is_liked || false}
               initialCount={post.likes_count || 0}
-              size="sm"
-              showCount={true}
+              onLike={handleLike}
             />
             <Button 
               variant="ghost" 
@@ -360,7 +338,7 @@ const FastPostCreator = memo(({ onSubmit, isLoading }: { onSubmit: any; isLoadin
 });
 
 export default function FixedFastHomeFeed() {
-  const { posts, isLoading, error, createPost, isCreating, deletePost } = useSimplePosts();
+  const { posts, loading, error, createPost, isCreating, retry } = useFastPosts();
 
   if (error && !posts.length) {
     return (
@@ -368,7 +346,7 @@ export default function FixedFastHomeFeed() {
         <Card className="p-8 text-center">
           <h3 className="text-lg font-semibold mb-2">Unable to load feed</h3>
           <p className="text-muted-foreground mb-4">Please check your connection and try again.</p>
-          <Button onClick={() => window.location.reload()}>Try Again</Button>
+          <Button onClick={retry}>Try Again</Button>
         </Card>
       </div>
     );
@@ -381,7 +359,7 @@ export default function FixedFastHomeFeed() {
 
       {/* Posts Feed */}
       <div className="space-y-4">
-        {isLoading && posts.length === 0 ? (
+        {loading && posts.length === 0 ? (
           // Initial loading
           <>
             <FastSkeletonPost />
@@ -396,7 +374,7 @@ export default function FixedFastHomeFeed() {
           </Card>
         ) : (
           // Posts list
-          posts.filter(post => post && post.id).map((post, index) => (
+          posts.map((post, index) => (
             <motion.div
               key={post.id}
               initial={{ opacity: 0, y: 20 }}
@@ -409,7 +387,7 @@ export default function FixedFastHomeFeed() {
         )}
 
         {/* Loading indicator for additional posts */}
-        {isLoading && posts.length > 0 && (
+        {loading && posts.length > 0 && (
           <div className="py-4">
             <FastLoader />
           </div>

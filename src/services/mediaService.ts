@@ -143,6 +143,31 @@ class MediaService {
     return url;
   }
 
+  /**
+   * Resolve a storage path or partial URL to a public URL
+   * Examples accepted:
+   *  - posts/user/file.jpg
+   *  - /storage/v1/object/public/posts/user/file.jpg
+   *  - https://<proj>.supabase.co/storage/v1/object/public/posts/user/file.jpg
+   */
+  resolvePublicUrl(pathOrUrl: string, bucketHint: 'avatars' | 'posts' | 'attachments' | 'communities' = 'posts'): string {
+    if (!pathOrUrl) return '';
+
+    // Already a full public URL
+    if (this.isValidUrl(pathOrUrl) && pathOrUrl.includes('/storage/v1/object/public/')) {
+      return pathOrUrl;
+    }
+
+    // Strip any leading slashes
+    const clean = pathOrUrl.replace(/^\/+/, '');
+
+    // If it already contains the bucket name at the start, use as path
+    const path = clean.startsWith(`${bucketHint}/`) ? clean.replace(`${bucketHint}/`, '') : clean;
+
+    const { data } = supabase.storage.from(bucketHint).getPublicUrl(path);
+    return data.publicUrl;
+  }
+
   isValidUrl(url: string): boolean {
     if (!url) return false;
     try {

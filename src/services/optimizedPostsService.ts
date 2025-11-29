@@ -23,8 +23,6 @@ class OptimizedPostsService {
           visibility,
           community_id,
           reactions,
-          hashtags,
-          mentions,
           created_at,
           updated_at,
           profiles:user_id (
@@ -111,6 +109,9 @@ class OptimizedPostsService {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
+      // Extract mentions only
+      const mentions = this.extractMentions(postData.content);
+
       const { data, error } = await supabase
         .from('posts')
         .insert({
@@ -122,8 +123,7 @@ class OptimizedPostsService {
           tags: postData.tags || [],
           image_url: postData.image_url,
           community_id: postData.community_id,
-          hashtags: this.extractHashtags(postData.content),
-          mentions: this.extractMentions(postData.content)
+          mentions: mentions
         })
         .select(`
           *,
@@ -138,6 +138,7 @@ class OptimizedPostsService {
         .single();
 
       if (error) throw error;
+
 
       return this.transformPost(data);
     } catch (error) {
@@ -213,8 +214,6 @@ class OptimizedPostsService {
       shares_count: dbPost.shares_count || 0,
       saves_count: dbPost.saves_count || 0,
       visibility: dbPost.visibility as 'public' | 'friends' | 'private',
-      hashtags: dbPost.hashtags || [],
-      mentions: dbPost.mentions || [],
       reactions: dbPost.reactions || {},
       created_at: dbPost.created_at,
       updated_at: dbPost.updated_at,
@@ -230,15 +229,6 @@ class OptimizedPostsService {
     } as EnhancedPostData;
   }
 
-  private extractHashtags(content: string): string[] {
-    const hashtagRegex = /#(\w+)/g;
-    const hashtags = [];
-    let match;
-    while ((match = hashtagRegex.exec(content)) !== null) {
-      hashtags.push(match[1].toLowerCase());
-    }
-    return hashtags;
-  }
 
   private extractMentions(content: string): string[] {
     const mentionRegex = /@(\w+)/g;

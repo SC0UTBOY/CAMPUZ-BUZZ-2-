@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { chatService, type CommunityWithChannels, type Channel } from '@/services/chatService';
+import { chatService, type ServerWithChannels, type Channel } from '@/services/chatService';
 import { 
   Hash, 
   Volume2, 
@@ -23,14 +23,14 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface ChannelSidebarProps {
-  community: CommunityWithChannels;
+  server: ServerWithChannels;
   activeChannelId?: string;
   onChannelSelect: (channel: Channel) => void;
   onCreateChannel?: () => void;
 }
 
 export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
-  community,
+  server,
   activeChannelId,
   onChannelSelect,
   onCreateChannel
@@ -38,9 +38,9 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['text', 'voice']));
   const [searchQuery, setSearchQuery] = useState('');
 
-  const textChannels = community.channels.filter(c => c.type === 'text');
-  const voiceChannels = community.channels.filter(c => c.type === 'voice');
-  const announcementChannels = community.channels.filter(c => c.type === 'announcement');
+  const textChannels = server.channels.filter(c => c.type === 'text');
+  const voiceChannels = server.channels.filter(c => c.type === 'voice');
+  const announcementChannels = server.channels.filter(c => c.type === 'announcement');
 
   const filteredTextChannels = textChannels.filter(c => 
     c.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -72,17 +72,17 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
 
   return (
     <div className="w-60 bg-muted/30 border-r flex flex-col h-full">
-      {/* Community Header */}
+      {/* Server Header */}
       <div className="p-4 border-b">
         <div className="flex items-center space-x-3">
           <Avatar className="h-10 w-10">
-            <AvatarImage src={community.avatar_url || ''} />
-            <AvatarFallback>{community.name.charAt(0)}</AvatarFallback>
+            <AvatarImage src={''} />
+            <AvatarFallback>{server.name.charAt(0)}</AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            <h2 className="font-semibold truncate">{community.name}</h2>
+            <h2 className="font-semibold truncate">{server.name}</h2>
             <p className="text-sm text-muted-foreground">
-              {community.member_count} members
+              Server
             </p>
           </div>
           <DropdownMenu>
@@ -150,9 +150,6 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                       >
                         <Hash className="h-4 w-4 mr-2 text-muted-foreground" />
                         <span className="truncate">{channel.name}</span>
-                        {channel.is_private && (
-                          <Lock className="h-3 w-3 ml-auto text-muted-foreground" />
-                        )}
                       </Button>
                     ))}
                   </motion.div>
@@ -205,9 +202,6 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                     >
                       <Hash className="h-4 w-4 mr-2 text-muted-foreground" />
                       <span className="truncate flex-1">{channel.name}</span>
-                      {channel.is_private && (
-                        <Lock className="h-3 w-3 ml-1 text-muted-foreground" />
-                      )}
                       <Badge variant="secondary" className="ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         12
                       </Badge>
@@ -250,9 +244,6 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                     >
                       <Volume2 className="h-4 w-4 mr-2 text-muted-foreground" />
                       <span className="truncate">{channel.name}</span>
-                      {channel.is_private && (
-                        <Lock className="h-3 w-3 ml-auto text-muted-foreground" />
-                      )}
                     </Button>
                   ))}
                 </motion.div>
@@ -269,7 +260,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
             Members
           </span>
           <Badge variant="secondary" className="text-xs">
-            {community.member_count}
+            0
           </Badge>
         </div>
         <div className="space-y-1">

@@ -43,7 +43,7 @@ export class SimpleCommentsService {
 
       // Get profiles for these users
       const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
+        .from('user_profiles' as any)
         .select('user_id, display_name, avatar_url')
         .in('user_id', userIds);
 
@@ -57,8 +57,8 @@ export class SimpleCommentsService {
         ...comment,
         profiles: {
           id: comment.user_id,
-          display_name: profiles?.find(p => p.user_id === comment.user_id)?.display_name || 'Unknown User',
-          avatar_url: profiles?.find(p => p.user_id === comment.user_id)?.avatar_url
+          display_name: profiles?.find((p: any) => p.id === comment.user_id)?.display_name || 'Unknown User',
+          avatar_url: profiles?.find((p: any) => p.id === comment.user_id)?.avatar_url
         }
       })) as Comment[];
     } catch (error) {
@@ -87,7 +87,7 @@ export class SimpleCommentsService {
 
       // Get profiles for these users
       const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
+        .from('user_profiles' as any)
         .select('user_id, display_name, avatar_url')
         .in('user_id', userIds);
 
@@ -101,8 +101,8 @@ export class SimpleCommentsService {
         ...comment,
         profiles: {
           id: comment.user_id,
-          display_name: profiles?.find(p => p.user_id === comment.user_id)?.display_name || 'Unknown User',
-          avatar_url: profiles?.find(p => p.user_id === comment.user_id)?.avatar_url
+          display_name: profiles?.find((p: any) => p.id === comment.user_id)?.display_name || 'Unknown User',
+          avatar_url: profiles?.find((p: any) => p.id === comment.user_id)?.avatar_url
         }
       })) as Comment[];
     } catch (error) {
@@ -146,9 +146,9 @@ export class SimpleCommentsService {
 
       // Get the user's profile
       const { data: profile } = await supabase
-        .from('profiles')
-        .select('user_id, display_name, avatar_url')
-        .eq('user_id', user.id)
+        .from('user_profiles' as any)
+        .select('id, display_name, avatar_url')
+        .eq('id', user.id)
         .single();
 
       return {
@@ -205,7 +205,7 @@ export class SimpleCommentsService {
 
       const { data: comment, error } = await supabase
         .from('comments')
-        .update({ 
+        .update({
           content: content.trim(),
           updated_at: new Date().toISOString()
         })
@@ -218,9 +218,9 @@ export class SimpleCommentsService {
 
       // Get the user's profile
       const { data: profile } = await supabase
-        .from('profiles')
-        .select('user_id, display_name, avatar_url')
-        .eq('user_id', user.id)
+        .from('user_profiles' as any)
+        .select('id, display_name, avatar_url')
+        .eq('id', user.id)
         .single();
 
       return {

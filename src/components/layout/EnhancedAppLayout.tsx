@@ -8,7 +8,7 @@ import { EnhancedMobileBottomNav } from './EnhancedMobileBottomNav';
 import { PerformanceMonitor } from '@/components/common/PerformanceMonitor';
 import { PWAInstallBanner } from '@/components/common/PWAInstallBanner';
 import { OfflineBanner } from '@/components/common/OfflineBanner';
-import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
+import { SidebarProvider, SidebarInset, useSidebar } from '@/components/ui/sidebar';
 import { LoadingSkeletons } from '@/components/common/LoadingSkeletons';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -48,23 +48,25 @@ const LazyComponent = ({ importFunc }: { importFunc: () => Promise<any> }) => {
   return <Component />;
 };
 
-export const EnhancedAppLayout: React.FC = () => {
-  const { user } = useAuth();
+const EnhancedAppLayoutContent: React.FC = () => {
+  const { toggleSidebar } = useSidebar();
 
-  if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
+  // Prevent pinch-to-zoom on mobile
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length > 1) {
+      e.preventDefault();
+    }
+  };
 
   return (
-    <SidebarProvider>
-      <div className="min-h-screen bg-background flex w-full">
+    <>
+      <div 
+        className="min-h-screen bg-background flex w-full"
+        onTouchStart={handleTouchStart}
+      >
         <AppSidebar />
         <SidebarInset className="flex flex-col flex-1">
-          <EnhancedTopBar onPostCreated={() => window.location.reload()} />
+          <EnhancedTopBar onMobileMenuToggle={toggleSidebar} />
           
           {/* Offline/Sync Status */}
           <OfflineBanner />
@@ -74,7 +76,7 @@ export const EnhancedAppLayout: React.FC = () => {
               <Suspense fallback={<LoadingSkeletons type="feed" count={3} />}>
                 <Routes>
                   <Route path="/" element={
-                    <LazyComponent importFunc={() => import('@/pages/FixedFastHomeFeed')} />
+                    <LazyComponent importFunc={() => import('@/pages/FastHomeFeed')} />
                   } />
                   <Route path="/chat" element={
                     <LazyComponent importFunc={() => import('@/pages/Chat')} />
@@ -82,8 +84,8 @@ export const EnhancedAppLayout: React.FC = () => {
                   <Route path="/communities" element={
                     <LazyComponent importFunc={() => import('@/pages/Communities')} />
                   } />
-                  <Route path="/study-groups" element={
-                    <LazyComponent importFunc={() => import('@/pages/StudyGroups')} />
+                  <Route path="/communities/:id" element={
+                    <LazyComponent importFunc={() => import('@/pages/CommunityPage')} />
                   } />
                   <Route path="/events" element={
                     <LazyComponent importFunc={() => import('@/pages/EventCalendar')} />
@@ -110,14 +112,6 @@ export const EnhancedAppLayout: React.FC = () => {
                     <LazyComponent importFunc={() => import('@/pages/Documentation')} />
                   } />
                   
-                  {/* Hashtag and User routes */}
-                  <Route path="/hashtag/:hashtag" element={
-                    <LazyComponent importFunc={() => import('@/pages/HashtagPage')} />
-                  } />
-                  <Route path="/profile/:username" element={
-                    <LazyComponent importFunc={() => import('@/pages/UserPage')} />
-                  } />
-                  
                   {/* Catch-all route */}
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
@@ -139,6 +133,24 @@ export const EnhancedAppLayout: React.FC = () => {
       <PerformanceMonitor />
       
       <Toaster />
+    </>
+  );
+};
+
+export const EnhancedAppLayout: React.FC = () => {
+  const { user } = useAuth();
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  return (
+    <SidebarProvider>
+      <EnhancedAppLayoutContent />
     </SidebarProvider>
   );
 };

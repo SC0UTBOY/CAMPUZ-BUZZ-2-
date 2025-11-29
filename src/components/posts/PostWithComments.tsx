@@ -8,7 +8,6 @@ import { Separator } from '@/components/ui/separator';
 import { 
   Heart, 
   MessageCircle, 
-  Share2, 
   Bookmark, 
   Calendar,
   ChevronDown,
@@ -21,13 +20,12 @@ import { usePostSaves } from '@/hooks/usePostSaves';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import type { EnhancedPostData } from '@/types/posts';
-import RobustHashtagMentionText from '@/components/common/RobustHashtagMentionText';
+import { HashtagText } from '@/components/common/HashtagText';
 
 interface PostWithCommentsProps {
   post: EnhancedPostData;
   onReact?: (postId: string, reactionType: string) => void;
   onSave?: (postId: string) => void;
-  onShare?: (postId: string) => void;
   showComments?: boolean;
   className?: string;
 }
@@ -36,7 +34,6 @@ export const PostWithComments: React.FC<PostWithCommentsProps> = ({
   post,
   onReact,
   onSave,
-  onShare,
   showComments: initialShowComments = false,
   className
 }) => {
@@ -52,20 +49,6 @@ export const PostWithComments: React.FC<PostWithCommentsProps> = ({
   const handleSave = () => {
     toggleSave(post.id);
     onSave?.(post.id);
-  };
-  
-  const handleShare = () => {
-    if (navigator.share) {
-      navigator.share({
-        title: post.title || 'Check out this post',
-        text: post.content,
-        url: `${window.location.origin}/post/${post.id}`
-      });
-    } else {
-      // Fallback to copying link
-      navigator.clipboard.writeText(`${window.location.origin}/post/${post.id}`);
-    }
-    onShare?.(post.id);
   };
   
   const handleComment = () => setShowComments(!showComments);
@@ -124,23 +107,43 @@ export const PostWithComments: React.FC<PostWithCommentsProps> = ({
         </CardHeader>
 
         <CardContent className="space-y-4">
-          {/* Post Content */}
-          {post.content && (
-            <div className="text-foreground whitespace-pre-wrap break-words">
-              <RobustHashtagMentionText text={post.content} />
-            </div>
+          {/* Hashtags - Instagram style (above image) */}
+          {post.image_url && post.content && (
+            <HashtagText 
+              text={post.content}
+              className="text-foreground whitespace-pre-wrap break-words"
+              onlyHashtags={true}
+            />
           )}
 
           {/* Media Content */}
           {post.image_url && (
-            <div className="rounded-lg overflow-hidden bg-muted">
-              <PostImage
-                src={post.image_url}
-                alt={post.title || post.content || 'Post media'}
-                className="w-full max-h-96 object-cover cursor-pointer hover:opacity-95 transition-opacity"
-                fallbackClassName="w-full h-48 bg-muted/50 flex items-center justify-center text-muted-foreground border border-border rounded-lg"
-              />
-            </div>
+            <>
+              <div className="rounded-lg overflow-hidden bg-muted">
+                <PostImage
+                  src={post.image_url}
+                  alt={post.title || post.content || 'Post media'}
+                  className="w-full max-h-96 object-cover cursor-pointer hover:opacity-95 transition-opacity"
+                  fallbackClassName="w-full h-48 bg-muted/50 flex items-center justify-center text-muted-foreground border border-border rounded-lg"
+                />
+              </div>
+
+              {/* Instagram-style caption with username */}
+              {post.content && (
+                <div className="mt-3 text-sm">
+                  <span className="font-semibold text-foreground mr-2">@{post.author?.display_name || 'user'}</span>
+                  <span className="text-foreground">{post.content.replace(/#\w+/g, '').trim()}</span>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* For non-photo posts, show content normally */}
+          {!post.image_url && post.content && (
+            <HashtagText 
+              text={post.content}
+              className="text-foreground whitespace-pre-wrap break-words"
+            />
           )}
 
           {/* Tags */}
@@ -155,7 +158,7 @@ export const PostWithComments: React.FC<PostWithCommentsProps> = ({
           )}
 
           {/* Engagement Stats */}
-          {(post.likes_count > 0 || post.comments_count > 0 || post.shares_count > 0) && (
+          {(post.likes_count > 0 || post.comments_count > 0) && (
             <div className="flex items-center justify-between py-2 text-sm text-muted-foreground">
               <div className="flex items-center space-x-4">
                 {post.likes_count > 0 && (
@@ -165,9 +168,6 @@ export const PostWithComments: React.FC<PostWithCommentsProps> = ({
               <div className="flex items-center space-x-4">
                 {post.comments_count > 0 && (
                   <span>{post.comments_count} {post.comments_count === 1 ? 'comment' : 'comments'}</span>
-                )}
-                {post.shares_count > 0 && (
-                  <span>{post.shares_count} {post.shares_count === 1 ? 'share' : 'shares'}</span>
                 )}
               </div>
             </div>
@@ -208,15 +208,6 @@ export const PostWithComments: React.FC<PostWithCommentsProps> = ({
                 )}
               </Button>
 
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleShare}
-                className="text-muted-foreground hover:text-green-500"
-              >
-                <Share2 className="h-4 w-4 mr-1" />
-                <span className="text-sm">Share</span>
-              </Button>
             </div>
 
             <Button

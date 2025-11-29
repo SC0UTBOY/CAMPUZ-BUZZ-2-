@@ -4,24 +4,24 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useRealtimeAvatar } from '@/hooks/useRealtimeAvatar';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { StatusIndicator } from '@/components/ui/status-indicator';
 import { motion } from 'framer-motion';
-import { 
-  Home, 
-  User, 
-  Calendar, 
-  MessageSquare, 
-  Megaphone, 
-  Search, 
-  Users, 
+import {
+  Home,
+  User,
+  Calendar,
+  MessageSquare,
+  Megaphone,
+  Search,
+  Users,
   LogOut,
   X,
   Moon,
   Sun,
-  BookOpen,
   Zap,
   TrendingUp
 } from 'lucide-react';
@@ -37,7 +37,7 @@ const getRoleBadge = (role: string) => {
     club: { label: 'Club', className: 'badge-mentor' },
     student: { label: 'Student', className: 'badge-student' }
   };
-  
+
   const config = roleConfig[role as keyof typeof roleConfig] || roleConfig.student;
   return (
     <Badge className={`text-xs ${config.className}`}>
@@ -47,10 +47,11 @@ const getRoleBadge = (role: string) => {
 };
 
 export const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
-  const { signOut } = useAuth();
+  const { user, signOut } = useAuth();
   const { profile } = useUserProfile();
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
+  const { avatarUrl } = useRealtimeAvatar();
 
   const navItems = [
     { icon: Home, label: 'Home', path: '/', color: 'text-blue-500' },
@@ -58,12 +59,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
     { icon: Users, label: 'Communities', path: '/communities', color: 'text-green-500' },
     { icon: Calendar, label: 'Events', path: '/events', color: 'text-purple-500' },
     { icon: MessageSquare, label: 'Chat', path: '/chat', color: 'text-pink-500' },
-    { icon: BookOpen, label: 'Study Groups', path: '/study-groups', color: 'text-indigo-500' },
     { icon: Megaphone, label: 'Announcements', path: '/announcements', color: 'text-red-500' },
   ];
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ x: -300 }}
       animate={{ x: 0 }}
       transition={{ type: "spring", stiffness: 300, damping: 30 }}
@@ -72,32 +72,23 @@ export const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
       {/* Header */}
       <div className="p-6 border-b border-sidebar-border">
         <div className="flex items-center justify-between">
-          <motion.div 
+          <motion.div
             className="flex items-center space-x-3"
             whileHover={{ scale: 1.05 }}
             transition={{ type: "spring", stiffness: 400 }}
           >
-            <div className="relative flex items-center justify-center">
-              {/* Light mode logo */}
-              <img 
-                src="/lovable-uploads/e51f26a6-a9d4-4b1f-a787-2f24bdc5c8bf.png" 
-                alt="CampuzBuzz Logo" 
-                className="w-10 h-10 object-contain dark:hidden"
-              />
-              {/* Dark mode logo */}
-              <img 
-                src="/5.png" 
-                alt="CampuzBuzz Logo" 
-                className="w-10 h-10 object-contain hidden dark:block"
-              />
-            </div>
+            <img
+              src={theme === 'dark' ? '/lovable-uploads/campuzbuzz-logo-blue.png' : '/lovable-uploads/e51f26a6-a9d4-4b1f-a787-2f24bdc5c8bf.png'}
+              alt="CampuzBuzz Logo"
+              className="h-10 w-10 object-contain"
+            />
             <span className="text-xl font-bold gradient-text bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
               CampuzBuzz
             </span>
           </motion.div>
-          <Button 
-            variant="ghost" 
-            size="sm" 
+          <Button
+            variant="ghost"
+            size="sm"
             className="lg:hidden hover:bg-sidebar-accent"
             onClick={onClose}
           >
@@ -108,20 +99,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
 
       {/* User Profile Card */}
       <div className="p-4 border-b border-sidebar-border/50">
-        <motion.div 
+        <motion.div
           className="flex items-center space-x-3 p-3 rounded-lg hover:bg-sidebar-accent/50 transition-colors cursor-pointer"
           whileHover={{ scale: 1.02 }}
         >
           <div className="relative">
             <Avatar className="h-12 w-12 ring-2 ring-primary/20">
-              <AvatarImage src={profile?.avatar_url} />
+              <AvatarImage src={avatarUrl || profile?.avatar_url || undefined} />
               <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
                 {profile?.display_name?.charAt(0) || 'U'}
               </AvatarFallback>
             </Avatar>
-            <StatusIndicator 
-              status="online" 
-              className="absolute -bottom-1 -right-1" 
+            <StatusIndicator
+              status="online"
+              className="absolute -bottom-1 -right-1"
             />
           </div>
           <div className="flex-1 min-w-0">
@@ -161,14 +152,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
               <NavLink
                 to={item.path}
                 onClick={onClose}
-                className={`group flex items-center space-x-3 px-3 py-3 rounded-xl text-sm font-medium transition-all duration-200 animated-underline ${
-                  isActive
-                    ? 'bg-primary text-primary-foreground shadow-md transform scale-[1.02]'
-                    : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:transform hover:scale-[1.02]'
-                }`}
+                className={`group flex items-center space-x-3 px-3 py-3 rounded-xl text-sm font-medium transition-all duration-200 animated-underline ${isActive
+                  ? 'bg-primary text-primary-foreground shadow-md transform scale-[1.02]'
+                  : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:transform hover:scale-[1.02]'
+                  }`}
               >
                 <item.icon className={`h-5 w-5 ${isActive ? '' : item.color} group-hover:scale-110 transition-transform`} />
                 <span>{item.label}</span>
+                {item.path === '/chat' && (
+                  <Badge variant="secondary" className="ml-auto bg-red-500 text-white text-xs">
+                    3
+                  </Badge>
+                )}
               </NavLink>
             </motion.div>
           );
@@ -177,8 +172,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
 
       {/* Footer Actions */}
       <div className="p-4 border-t border-sidebar-border/50 space-y-2">
-        <Button 
-          variant="ghost" 
+        <Button
+          variant="ghost"
           className="w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group"
           onClick={toggleTheme}
         >
@@ -189,9 +184,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
           )}
           {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
         </Button>
-        
-        <Button 
-          variant="ghost" 
+
+        <Button
+          variant="ghost"
           className="w-full justify-start text-sidebar-foreground hover:bg-destructive hover:text-destructive-foreground group"
           onClick={signOut}
         >

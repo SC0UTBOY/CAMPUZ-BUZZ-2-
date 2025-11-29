@@ -18,6 +18,8 @@ export class NewPostsService {
       .single();
 
     if (error) throw error;
+
+
     return data;
   }
 
@@ -144,14 +146,16 @@ export class NewPostsService {
   // Like/unlike a post - DUPLICATE BUG FIXED
   static async toggleLike(postId: string): Promise<{ isLiked: boolean; likeCount: number }> {
     try {
+      const debugTime = new Date().toISOString();
       const { data: { user }, error: authError } = await supabase.auth.getUser();
+      console.log(`[toggleLike] Called at ${debugTime} for postId=${postId}, userId=${user?.id}`);
       if (authError || !user) {
         throw new Error('User not authenticated');
       }
 
       // Check if user already liked this post
       const { data: existingLike, error: selectError } = await supabase
-        .from('post_likes')
+        .from('likes')
         .select('id')
         .eq('post_id', postId)
         .eq('user_id', user.id)
@@ -167,7 +171,7 @@ export class NewPostsService {
       if (existingLike) {
         // Unlike the post - DELETE existing like
         const { error: deleteError } = await supabase
-          .from('post_likes')
+          .from('likes')
           .delete()
           .eq('post_id', postId)
           .eq('user_id', user.id);
@@ -180,7 +184,7 @@ export class NewPostsService {
       } else {
         // Like the post - INSERT new like
         const { error: insertError } = await supabase
-          .from('post_likes')
+          .from('likes')
           .insert({
             post_id: postId,
             user_id: user.id
@@ -210,9 +214,9 @@ export class NewPostsService {
 
       if (countError) {
         console.error('Error getting like count from posts:', countError);
-        // Fallback: count manually from post_likes table
+        // Fallback: count manually from likes table
         const { count } = await supabase
-          .from('post_likes')
+          .from('likes')
           .select('*', { count: 'exact', head: true })
           .eq('post_id', postId);
         

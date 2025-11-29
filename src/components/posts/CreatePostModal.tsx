@@ -187,3 +187,10 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ open, onClose,
     </Dialog>
   );
 };
+
+
+
+
+
+
+

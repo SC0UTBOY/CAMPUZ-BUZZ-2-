@@ -114,7 +114,7 @@ export class TestUtils {
   async testDatabaseConnection(): Promise<TestResult> {
     return this.runTest('Database Connection', async () => {
       const { data, error } = await supabase
-        .from('profiles')
+        .from('user_profiles' as any)
         .select('id')
         .limit(1);
 
@@ -133,13 +133,13 @@ export class TestUtils {
     return this.runTest('Authentication System', async () => {
       // Test anonymous access
       const { data: session } = await supabase.auth.getSession();
-      
+
       if (session.session) {
         // User is logged in, test user data access
         const { data: profile, error } = await supabase
-          .from('profiles')
+          .from('user_profiles' as any)
           .select('*')
-          .eq('user_id', session.session.user.id)
+          .eq('id', session.session.user.id)
           .single();
 
         if (error && error.code !== 'PGRST116') {
@@ -153,7 +153,7 @@ export class TestUtils {
   async testRLSPolicies(): Promise<TestResult> {
     return this.runTest('RLS Policies', async () => {
       const { data: session } = await supabase.auth.getSession();
-      
+
       if (!session.session) {
         // Test that protected resources are not accessible without auth
         const { error } = await supabase
@@ -178,12 +178,12 @@ export class TestUtils {
 
         const channel = supabase
           .channel('test_channel')
-          .on('postgres_changes', 
-            { 
-              event: '*', 
-              schema: 'public', 
-              table: 'posts' 
-            }, 
+          .on('postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'posts'
+            },
             () => {
               clearTimeout(timeout);
               resolve();
@@ -280,7 +280,7 @@ export class TestUtils {
             }
 
             results.totalResponseTime += performance.now() - requestStart;
-            
+
             // Small delay to prevent overwhelming the system
             await new Promise(resolve => setTimeout(resolve, 100));
           }
@@ -372,7 +372,7 @@ export class TestUtils {
     // Check RLS policies effectiveness
     try {
       const { data, error } = await supabase
-        .from('profiles')
+        .from('user_profiles' as any)
         .select('*')
         .limit(1);
 
@@ -426,7 +426,7 @@ export const createMockPost = () => ({
   updated_at: new Date().toISOString()
 });
 
-export const waitFor = (ms: number): Promise<void> => 
+export const waitFor = (ms: number): Promise<void> =>
   new Promise(resolve => setTimeout(resolve, ms));
 
 export const retryAsync = async <T>(

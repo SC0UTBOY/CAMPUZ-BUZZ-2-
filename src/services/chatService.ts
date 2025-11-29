@@ -1,11 +1,10 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
 
-export type Community = Database['public']['Tables']['communities']['Row'];
-export type Channel = Database['public']['Tables']['community_channels']['Row'];
+export type Server = Database['public']['Tables']['servers']['Row'];
+export type Channel = Database['public']['Tables']['channels']['Row'];
 export type Message = Database['public']['Tables']['messages']['Row'];
-export type CommunityMember = Database['public']['Tables']['community_members']['Row'];
-export type CommunityRole = Database['public']['Tables']['community_roles']['Row'];
+export type ServerMember = Database['public']['Tables']['server_members']['Row'];
 export type DMConversation = Database['public']['Tables']['dm_conversations']['Row'];
 
 export interface MessageAttachment {
@@ -29,11 +28,9 @@ export interface MessageWithAuthor extends Omit<Message, 'attachments'> {
   attachments: MessageAttachment[];
 }
 
-export interface CommunityWithChannels extends Community {
+export interface ServerWithChannels extends Server {
   channels: Channel[];
-  roles: CommunityRole[];
   member_role?: string;
-  avatar_url?: string | null;
 }
 
 class ChatService {
@@ -59,30 +56,27 @@ class ChatService {
     if (error) throw error;
   }
 
-  // Communities
-  async getCommunities(): Promise<CommunityWithChannels[]> {
-    const { data: communities, error } = await supabase
-      .from('communities')
+  // Servers (formerly communities)
+  async getServers(): Promise<ServerWithChannels[]> {
+    const { data: servers, error } = await supabase
+      .from('servers')
       .select(`
         *,
-        channels:community_channels(*),
-        roles:community_roles(*)
+        channels(*)
       `)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return (communities || []).map(community => ({
-      ...community,
-      avatar_url: null, // Add missing field
-      channels: Array.isArray(community.channels) ? community.channels : [],
-      roles: Array.isArray(community.roles) ? community.roles : []
-    })) as CommunityWithChannels[];
+    return (servers || []).map(server => ({
+      ...server,
+      channels: Array.isArray(server.channels) ? server.channels : []
+    })) as ServerWithChannels[];
   }
 
-  async createCommunity(name: string, description?: string): Promise<Community> {
+  async createServer(name: string, description?: string): Promise<Server> {
     const { data, error } = await supabase
-      .from('communities')
-      .insert({ name, description, created_by: (await supabase.auth.getUser()).data.user?.id! })
+      .from('servers')
+      .insert({ name, description, owner_id: (await supabase.auth.getUser()).data.user?.id! })
       .select()
       .single();
 
@@ -90,11 +84,11 @@ class ChatService {
     return data;
   }
 
-  async joinCommunity(communityId: string): Promise<void> {
+  async joinServer(serverId: string): Promise<void> {
     const { error } = await supabase
-      .from('community_members')
+      .from('server_members')
       .insert({ 
-        community_id: communityId, 
+        server_id: serverId, 
         user_id: (await supabase.auth.getUser()).data.user?.id! 
       });
 
@@ -102,26 +96,25 @@ class ChatService {
   }
 
   // Channels
-  async getChannels(communityId: string): Promise<Channel[]> {
+  async getChannels(serverId: string): Promise<Channel[]> {
     const { data, error } = await supabase
-      .from('community_channels')
+      .from('channels')
       .select('*')
-      .eq('community_id', communityId)
+      .eq('server_id', serverId)
       .order('position');
 
     if (error) throw error;
     return data;
   }
 
-  async createChannel(communityId: string, name: string, type: 'text' | 'voice' = 'text', description?: string): Promise<Channel> {
+  async createChannel(serverId: string, name: string, type: 'text' | 'voice' = 'text', description?: string): Promise<Channel> {
     const { data, error } = await supabase
-      .from('community_channels')
+      .from('channels')
       .insert({
-        community_id: communityId,
+        server_id: serverId,
         name,
         type,
-        description,
-        created_by: (await supabase.auth.getUser()).data.user?.id!
+        description
       })
       .select()
       .single();

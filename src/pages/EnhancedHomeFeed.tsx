@@ -47,7 +47,6 @@ const EnhancedHomeFeed = () => {
         user_id: user.id,
         visibility: postData.visibility || 'public',
         tags: postData.tags,
-        mentions: postData.mentions,
         image_url: postData.images?.[0]?.url
       });
       setShowCreatePost(false);

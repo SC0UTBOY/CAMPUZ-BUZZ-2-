@@ -75,7 +75,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({
       <Avatar className={`${depth > 0 ? 'h-8 w-8' : 'h-10 w-10'} flex-shrink-0`}>
         <AvatarImage src={comment.profiles?.avatar_url} />
         <AvatarFallback>
-          {comment.profiles?.display_name?.charAt(0)?.toUpperCase() || 'U'}
+          {(comment.profiles?.display_name || comment.profiles?.username || 'User').charAt(0).toUpperCase()}
         </AvatarFallback>
       </Avatar>
 
@@ -83,7 +83,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({
         {/* Comment Header */}
         <div className="flex items-center space-x-2 mb-1">
           <span className="font-semibold text-sm text-foreground">
-            {comment.profiles?.display_name || 'Anonymous User'}
+            {comment.profiles?.display_name || comment.profiles?.username || 'User'}
           </span>
           {comment.profiles?.major && (
             <Badge variant="secondary" className="text-xs">
@@ -179,7 +179,7 @@ export const CommentItem: React.FC<CommentItemProps> = ({
             <CommentReplyForm
               onSubmit={handleReply}
               onCancel={() => setShowReplyForm(false)}
-              placeholder={`Reply to ${comment.profiles?.display_name || 'this comment'}...`}
+              placeholder={`Reply to ${comment.profiles?.display_name || comment.profiles?.username || 'User'}...`}
             />
           </div>
         )}

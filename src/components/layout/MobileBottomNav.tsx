@@ -27,8 +27,7 @@ export const MobileBottomNav: React.FC = () => {
 
   const createMenuItems = [
     { icon: MessageSquare, label: 'New Post', path: '/' },
-    { icon: Calendar, label: 'Create Event', path: '/events' },
-    { icon: Users, label: 'Study Group', path: '/study-groups' }
+    { icon: Calendar, label: 'Create Event', path: '/events' }
   ];
 
   const navItems = [

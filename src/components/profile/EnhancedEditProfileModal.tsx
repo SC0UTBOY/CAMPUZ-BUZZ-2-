@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -14,15 +13,17 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { OptimizedUserProfile } from '@/hooks/useOptimizedProfile';
-import { 
-  User, 
-  GraduationCap, 
-  Shield, 
-  Link2, 
-  X, 
+import {
+  User,
+  GraduationCap,
+  Shield,
+  Link2,
+  X,
   Upload,
-  Plus
+  Plus,
+  Camera
 } from 'lucide-react';
+import { uploadAvatar, validateImageFile, updateProfileAvatar, deleteAvatar } from '@/services/profileService';
 
 interface EnhancedEditProfileModalProps {
   open: boolean;
@@ -40,25 +41,27 @@ export const EnhancedEditProfileModal: React.FC<EnhancedEditProfileModalProps> =
   const { user } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  
+  const [isUploading, setIsUploading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
   // Basic Info
   const [displayName, setDisplayName] = useState('');
   const [bio, setBio] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
-  
+
   // Academic Info
   const [school, setSchool] = useState('');
   const [major, setMajor] = useState('');
   const [year, setYear] = useState('');
   const [gpa, setGpa] = useState('');
   const [graduationYear, setGraduationYear] = useState('');
-  
+
   // Skills & Interests
   const [skills, setSkills] = useState<string[]>([]);
   const [interests, setInterests] = useState<string[]>([]);
   const [skillInput, setSkillInput] = useState('');
   const [interestInput, setInterestInput] = useState('');
-  
+
   // Social Links
   const [socialLinks, setSocialLinks] = useState({
     linkedin: '',
@@ -67,7 +70,7 @@ export const EnhancedEditProfileModal: React.FC<EnhancedEditProfileModalProps> =
     instagram: '',
     website: ''
   });
-  
+
   // Privacy Settings
   const [privacySettings, setPrivacySettings] = useState({
     profile_visible: true,
@@ -109,12 +112,49 @@ export const EnhancedEditProfileModal: React.FC<EnhancedEditProfileModalProps> =
     setLoading(true);
 
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({
+      let finalAvatarUrl = avatarUrl;
+
+      // Upload new avatar if file selected
+      if (selectedFile) {
+        setIsUploading(true);
+        try {
+          finalAvatarUrl = await uploadAvatar(user.id, selectedFile);
+
+          // Update avatar_url in database
+          const { success, error } = await updateProfileAvatar(user.id, finalAvatarUrl);
+          if (!success) {
+            throw error;
+          }
+        } catch (uploadError) {
+          console.error('Error uploading avatar:', uploadError);
+          toast({
+            title: "Error uploading avatar",
+            description: "Failed to upload profile picture. Please try again.",
+            variant: "destructive"
+          });
+          setIsUploading(false);
+          setLoading(false);
+          return;
+        } finally {
+          setIsUploading(false);
+        }
+      }
+
+      // If avatar was removed (avatarUrl is empty but profile had avatar)
+      if (!avatarUrl && profile.avatar_url) {
+        // Delete old avatar from storage
+        await deleteAvatar(profile.avatar_url);
+
+        // Update database to null
+        await updateProfileAvatar(user.id, null);
+        finalAvatarUrl = '';
+      }
+
+      const { error } = await supabase.auth.updateUser({
+        data: {
           display_name: displayName.trim(),
           bio: bio.trim(),
-          avatar_url: avatarUrl,
+          avatar_url: finalAvatarUrl,
           school: school.trim(),
           major: major.trim(),
           year: year,
@@ -125,8 +165,8 @@ export const EnhancedEditProfileModal: React.FC<EnhancedEditProfileModalProps> =
           social_links: socialLinks,
           privacy_settings: privacySettings,
           updated_at: new Date().toISOString()
-        })
-        .eq('user_id', user.id);
+        }
+      });
 
       if (error) throw error;
 
@@ -171,6 +211,35 @@ export const EnhancedEditProfileModal: React.FC<EnhancedEditProfileModalProps> =
     setInterests(interests.filter(interest => interest !== interestToRemove));
   };
 
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file
+    const validation = validateImageFile(file);
+    if (!validation.valid) {
+      toast({
+        title: "Invalid file",
+        description: validation.error,
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Set selected file and create preview
+    setSelectedFile(file);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setAvatarUrl(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveAvatar = () => {
+    setSelectedFile(null);
+    setAvatarUrl('');
+  };
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -201,26 +270,64 @@ export const EnhancedEditProfileModal: React.FC<EnhancedEditProfileModalProps> =
 
             <TabsContent value="basic" className="space-y-6">
               {/* Avatar Section */}
-              <div className="flex items-center space-x-4">
-                <Avatar className="h-20 w-20">
-                  <AvatarImage src={avatarUrl} />
-                  <AvatarFallback className="text-lg">
-                    {displayName?.charAt(0) || user?.email?.charAt(0) || 'U'}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <Label htmlFor="avatar">Profile Picture URL</Label>
-                  <div className="flex space-x-2 mt-1">
-                    <Input
-                      id="avatar"
-                      value={avatarUrl}
-                      onChange={(e) => setAvatarUrl(e.target.value)}
-                      placeholder="https://example.com/avatar.jpg"
-                    />
-                    <Button type="button" variant="outline" size="sm">
-                      <Upload className="h-4 w-4" />
+              <div className="flex flex-col items-center space-y-4">
+                <div className="relative">
+                  <Avatar className="h-24 w-24">
+                    <AvatarImage src={avatarUrl || undefined} />
+                    <AvatarFallback className="text-2xl">
+                      {displayName?.charAt(0) || user?.email?.charAt(0) || 'U'}
+                    </AvatarFallback>
+                  </Avatar>
+
+                  {/* Upload Button */}
+                  <label htmlFor="avatar-upload" className="absolute bottom-0 right-0 cursor-pointer">
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="rounded-full h-8 w-8 p-0"
+                      onClick={() => document.getElementById('avatar-upload')?.click()}
+                    >
+                      <Camera className="h-4 w-4" />
                     </Button>
-                  </div>
+                  </label>
+
+                  {/* Remove Button */}
+                  {avatarUrl && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="destructive"
+                      className="absolute -top-2 -right-2 rounded-full h-6 w-6 p-0"
+                      onClick={handleRemoveAvatar}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
+
+                {/* Hidden file input */}
+                <input
+                  id="avatar-upload"
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/webp"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+
+                <div className="text-center">
+                  <p className="text-sm text-muted-foreground">
+                    {selectedFile ? (
+                      <span className="flex items-center gap-2 text-green-600">
+                        <Upload className="h-4 w-4" />
+                        New photo selected
+                      </span>
+                    ) : (
+                      'Click camera icon to upload'
+                    )}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    JPG, PNG, or WebP • Max 5MB
+                  </p>
                 </div>
               </div>
 
@@ -337,7 +444,7 @@ export const EnhancedEditProfileModal: React.FC<EnhancedEditProfileModalProps> =
                       <Plus className="h-4 w-4" />
                     </Button>
                   </div>
-                  
+
                   {skills.length > 0 && (
                     <div className="flex flex-wrap gap-2">
                       {skills.map((skill) => (
@@ -372,7 +479,7 @@ export const EnhancedEditProfileModal: React.FC<EnhancedEditProfileModalProps> =
                       <Plus className="h-4 w-4" />
                     </Button>
                   </div>
-                  
+
                   {interests.length > 0 && (
                     <div className="flex flex-wrap gap-2">
                       {interests.map((interest) => (
@@ -422,8 +529,8 @@ export const EnhancedEditProfileModal: React.FC<EnhancedEditProfileModalProps> =
                   </div>
                   <Switch
                     checked={privacySettings.profile_visible}
-                    onCheckedChange={(checked) => 
-                      setPrivacySettings({...privacySettings, profile_visible: checked})
+                    onCheckedChange={(checked) =>
+                      setPrivacySettings({ ...privacySettings, profile_visible: checked })
                     }
                   />
                 </div>
@@ -435,8 +542,8 @@ export const EnhancedEditProfileModal: React.FC<EnhancedEditProfileModalProps> =
                   </div>
                   <Switch
                     checked={privacySettings.email_visible}
-                    onCheckedChange={(checked) => 
-                      setPrivacySettings({...privacySettings, email_visible: checked})
+                    onCheckedChange={(checked) =>
+                      setPrivacySettings({ ...privacySettings, email_visible: checked })
                     }
                   />
                 </div>
@@ -448,8 +555,8 @@ export const EnhancedEditProfileModal: React.FC<EnhancedEditProfileModalProps> =
                   </div>
                   <Switch
                     checked={privacySettings.academic_info_visible}
-                    onCheckedChange={(checked) => 
-                      setPrivacySettings({...privacySettings, academic_info_visible: checked})
+                    onCheckedChange={(checked) =>
+                      setPrivacySettings({ ...privacySettings, academic_info_visible: checked })
                     }
                   />
                 </div>
@@ -462,8 +569,8 @@ export const EnhancedEditProfileModal: React.FC<EnhancedEditProfileModalProps> =
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? 'Saving...' : 'Save Changes'}
+            <Button type="submit" disabled={loading || isUploading}>
+              {isUploading ? 'Uploading...' : loading ? 'Saving...' : 'Save Changes'}
             </Button>
           </div>
         </form>

@@ -1,7 +1,6 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { PostComments } from '@/services/posts/postComments';
-import { CommentLikesService } from './commentLikesService';
-import { CommentRepliesService } from './commentRepliesService';
 
 export interface Comment {
   id: string;
@@ -11,7 +10,6 @@ export interface Comment {
   parent_id?: string;
   depth: number;
   likes_count: number;
-  reply_count: number;
   created_at: string;
   updated_at: string;
   reactions: Record<string, any>;
@@ -23,24 +21,7 @@ export interface Comment {
     year?: string;
   };
   replies?: Comment[];
-  isLiked?: boolean;
-  commentReplies?: CommentReplyWithProfile[];
-}
-
-export interface CommentReplyWithProfile {
-  id: string;
-  comment_id: string;
-  user_id: string;
-  text: string;
-  created_at: string;
-  updated_at: string;
-  profiles: {
-    id: string;
-    display_name: string;
-    avatar_url?: string;
-    major?: string;
-    year?: string;
-  };
+  reply_count?: number;
 }
 
 export interface CreateCommentData {
@@ -50,154 +31,155 @@ export interface CreateCommentData {
 }
 
 export class CommentsService {
-  // Get comments for a specific post with threading - SUPABASE FUNCTION VERSION
+  // Get comments for a specific post with threading
   static async getPostComments(postId: string, limit: number = 20): Promise<Comment[]> {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('User not authenticated');
+      const { data, error } = await supabase
+        .from('comments')
+        .select(`
+          id,
+          post_id,
+          user_id,
+          content,
+          parent_id,
+          depth,
+          likes_count,
+          created_at,
+          updated_at,
+          reactions,
+          profiles:user_id (
+            id,
+            display_name,
+            avatar_url,
+            major,
+            year
+          )
+        `)
+        .eq('post_id', postId)
+        .order('created_at', { ascending: true })
+        .limit(limit);
 
-      // Call the Supabase Edge Function
-      const { data, error } = await supabase.functions.invoke('get-comments', {
-        body: { postId, limit },
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
+      if (error) throw error;
 
-      if (error) {
-        throw new Error(error.message || 'Failed to fetch comments');
-      }
-
-      // Ensure reply_count is present in the returned data
-      return (data as any[]).map(comment => ({
+      // Transform flat comments into threaded structure with proper typing
+      return this.buildCommentTree((data || []).map(comment => ({
         ...comment,
-        reply_count: comment.reply_count || 0,
-        likes_count: comment.likes_count || 0,
-        reactions: comment.reactions || {},
-        profiles: comment.profiles ? {
-          id: comment.profiles.id,
-          display_name: comment.profiles.display_name,
-          avatar_url: comment.profiles.avatar_url,
-          major: comment.profiles.major,
-          year: comment.profiles.year
-        } : {
-          id: '',
-          display_name: 'Unknown User',
-          avatar_url: undefined,
-          major: undefined,
-          year: undefined
-        }
-      })) as Comment[];
+        reactions: (comment.reactions as Record<string, any>) || {},
+        profiles: Array.isArray(comment.profiles) ? comment.profiles[0] : comment.profiles
+      })));
     } catch (error) {
       console.error('Error fetching post comments:', error);
       throw error;
     }
   }
 
-  // Get recent comments for feed preview (top-level only) - FIXED VERSION
+  // Get recent comments for feed preview (top-level only)
   static async getRecentComments(postId: string, limit: number = 3): Promise<Comment[]> {
     try {
-      // First, get comments
-      const { data: comments, error: commentsError } = await supabase
+      const { data, error } = await supabase
         .from('comments')
-        .select('*')
+        .select(`
+          id,
+          post_id,
+          user_id,
+          content,
+          parent_id,
+          depth,
+          likes_count,
+          created_at,
+          updated_at,
+          reactions,
+          profiles:user_id (
+            id,
+            display_name,
+            avatar_url,
+            major,
+            year
+          )
+        `)
         .eq('post_id', postId)
         .is('parent_id', null) // Only top-level comments for feed
         .order('created_at', { ascending: false })
         .limit(limit);
 
-      if (commentsError) throw commentsError;
+      if (error) throw error;
 
-      if (!comments || comments.length === 0) {
-        return [];
-      }
-
-      // Get user IDs from comments
-      const userIds = [...new Set(comments.map(c => c.user_id))];
-
-      // Get profiles for these users
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('*')
-        .in('id', userIds);
-
-      if (profilesError) throw profilesError;
-
-      // Create a map of user_id to profile
-      const profileMap = new Map();
-      profiles?.forEach(profile => {
-        profileMap.set(profile.id, profile);
-      });
-
-      // Combine comments with profiles
-      const commentsWithProfiles = comments.map(comment => ({
+      return (data || []).map(comment => ({
         ...comment,
         reactions: (comment.reactions as Record<string, any>) || {},
-        profiles: profileMap.get(comment.user_id) || {
-          id: comment.user_id,
-          user_id: comment.user_id,
-          display_name: 'Unknown User',
-          avatar_url: null,
-          major: null,
-          year: null
-        }
+        profiles: Array.isArray(comment.profiles) ? comment.profiles[0] : comment.profiles
       }));
-
-      return commentsWithProfiles;
     } catch (error) {
       console.error('Error fetching recent comments:', error);
       return [];
     }
   }
 
-  // Create a new comment or reply - SUPABASE FUNCTION VERSION
+  // Create a new comment or reply
   static async createComment(commentData: CreateCommentData): Promise<Comment> {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('User not authenticated');
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
 
-      // Log for debugging
-      console.log('Invoking create-comment Edge Function with data:', {
-        postId: commentData.post_id,
-        content: commentData.content,
-        parent_id: commentData.parent_id
-      });
-
-      // Call the Supabase Edge Function
-      const { data, error } = await supabase.functions.invoke('create-comment', {
-        body: {
-          postId: commentData.post_id,
-          content: commentData.content,
-          parent_id: commentData.parent_id
-        },
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
-
-      if (error) {
-        console.error('Supabase function error details:', {
-          message: error.message,
-          context: error.context,
-          details: error.details,
-          hint: error.hint,
-          code: error.code
-        });
-        throw new Error(error.message || 'Failed to create comment');
+      // Calculate depth for threading (max 3 levels)
+      let depth = 0;
+      if (commentData.parent_id) {
+        const { data: parentComment } = await supabase
+          .from('comments')
+          .select('depth')
+          .eq('id', commentData.parent_id)
+          .single();
+        
+        depth = Math.min((parentComment?.depth || 0) + 1, 3);
       }
 
-      const comment: Comment = data;
+      const { data: comment, error } = await supabase
+        .from('comments')
+        .insert({
+          post_id: commentData.post_id,
+          user_id: user.id,
+          content: commentData.content.trim(),
+          parent_id: commentData.parent_id || null,
+          depth: depth
+        })
+        .select(`
+          id,
+          post_id,
+          user_id,
+          content,
+          parent_id,
+          depth,
+          likes_count,
+          created_at,
+          updated_at,
+          reactions,
+          profiles:user_id (
+            id,
+            display_name,
+            avatar_url,
+            major,
+            year
+          )
+        `)
+        .single();
 
-      // Note: Notifications and mentions are handled in the edge function
-      // No need to call PostComments.addComment as the comment is already created
+      if (error) throw error;
 
-      return comment;
-    } catch (error: any) {
+      // Send notifications and handle mentions
+      await PostComments.addComment(
+        commentData.post_id, 
+        commentData.content, 
+        commentData.parent_id
+      );
+
+      return {
+        ...comment,
+        reactions: (comment.reactions as Record<string, any>) || {},
+        profiles: Array.isArray(comment.profiles) ? comment.profiles[0] : comment.profiles
+      };
+    } catch (error) {
       console.error('Error creating comment:', error);
-      if (error.context) {
-        console.error('Supabase error context:', error.context);
-      }
-      throw new Error(`Failed to post comment: ${error.message}`);
+      throw error;
     }
   }
 
@@ -220,51 +202,44 @@ export class CommentsService {
     }
   }
 
-  // Update a comment (user's own only) - FIXED VERSION
+  // Update a comment (user's own only)
   static async updateComment(commentId: string, content: string): Promise<Comment> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
-      const { data: comment, error: commentError } = await supabase
+      const { data: comment, error } = await supabase
         .from('comments')
         .update({ content: content.trim() })
         .eq('id', commentId)
         .eq('user_id', user.id)
-        .select()
-        .maybeSingle();
+        .select(`
+          id,
+          post_id,
+          user_id,
+          content,
+          parent_id,
+          depth,
+          likes_count,
+          created_at,
+          updated_at,
+          reactions,
+          profiles:user_id (
+            id,
+            display_name,
+            avatar_url,
+            major,
+            year
+          )
+        `)
+        .single();
 
-      if (commentError) throw commentError;
+      if (error) throw error;
 
-      // Get the user's profile
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .maybeSingle();
-
-      // Don't throw error if profile not found, just use fallback
-      if (profileError) {
-        console.warn('Profile not found for user:', user.id, profileError);
-      }
-
-      // Return comment with profile
       return {
         ...comment,
         reactions: (comment.reactions as Record<string, any>) || {},
-        profiles: profile ? {
-          id: profile.id,
-          display_name: profile.display_name,
-          avatar_url: profile.avatar_url,
-          major: profile.major,
-          year: profile.year
-        } : {
-          id: user.id,
-          display_name: 'Unknown User',
-          avatar_url: undefined,
-          major: undefined,
-          year: undefined
-        }
+        profiles: Array.isArray(comment.profiles) ? comment.profiles[0] : comment.profiles
       };
     } catch (error) {
       console.error('Error updating comment:', error);
@@ -329,78 +304,6 @@ export class CommentsService {
     } catch (error) {
       console.error('Error getting comment count:', error);
       return 0;
-    }
-  }
-
-  // Get comments with likes and replies data
-  static async getCommentsWithLikesAndReplies(postId: string, limit: number = 20): Promise<Comment[]> {
-    try {
-      // Get comments with basic data
-      const comments = await this.getPostComments(postId, limit);
-      
-      if (comments.length === 0) {
-        return [];
-      }
-
-      const commentIds = comments.map(c => c.id);
-
-      // Get like data for all comments
-      const likesData = await CommentLikesService.getLikesForComments(commentIds);
-
-      // Get reply counts for all comments
-      const replyCounts = await CommentRepliesService.getReplyCounts(commentIds);
-
-      // Get replies for all comments (limit to 3 per comment for performance)
-      const repliesPromises = commentIds.map(commentId => 
-        CommentRepliesService.getCommentReplies(commentId).then(replies => 
-          replies.slice(0, 3) // Limit to 3 replies per comment
-        )
-      );
-      const allReplies = await Promise.all(repliesPromises);
-
-      // Combine all data
-      const commentsWithLikesAndReplies = comments.map((comment, index) => ({
-        ...comment,
-        isLiked: likesData[comment.id]?.liked || false,
-        likes_count: likesData[comment.id]?.likeCount || comment.likes_count,
-        reply_count: replyCounts[comment.id] || comment.reply_count,
-        commentReplies: allReplies[index] || []
-      }));
-
-      return commentsWithLikesAndReplies;
-    } catch (error) {
-      console.error('Error getting comments with likes and replies:', error);
-      throw error;
-    }
-  }
-
-  // Toggle like for a comment
-  static async toggleCommentLike(commentId: string): Promise<{ liked: boolean; likeCount: number }> {
-    try {
-      return await CommentLikesService.toggleLike(commentId);
-    } catch (error) {
-      console.error('Error toggling comment like:', error);
-      throw error;
-    }
-  }
-
-  // Create a reply to a comment
-  static async createCommentReply(commentId: string, text: string): Promise<CommentReplyWithProfile> {
-    try {
-      return await CommentRepliesService.createReply({ comment_id: commentId, text });
-    } catch (error) {
-      console.error('Error creating comment reply:', error);
-      throw error;
-    }
-  }
-
-  // Get all replies for a comment
-  static async getCommentReplies(commentId: string): Promise<CommentReplyWithProfile[]> {
-    try {
-      return await CommentRepliesService.getCommentReplies(commentId);
-    } catch (error) {
-      console.error('Error getting comment replies:', error);
-      return [];
     }
   }
 }

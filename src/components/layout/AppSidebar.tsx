@@ -4,6 +4,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useRealtimeAvatar } from '@/hooks/useRealtimeAvatar';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { StatusIndicator } from '@/components/ui/status-indicator';
@@ -22,13 +23,13 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { motion } from 'framer-motion';
-import { 
-  Home, 
-  User, 
-  Calendar, 
-  MessageSquare, 
-  Megaphone, 
-  Search, 
+import {
+  Home,
+  User,
+  Calendar,
+  MessageSquare,
+  Megaphone,
+  Search,
   Users,
   LogOut,
   Moon,
@@ -44,7 +45,7 @@ const getRoleBadge = (role: string) => {
     club: { label: 'Club', className: 'badge-mentor' },
     student: { label: 'Student', className: 'badge-student' }
   };
-  
+
   const config = roleConfig[role as keyof typeof roleConfig] || roleConfig.student;
   return (
     <Badge className={`text-xs ${config.className}`}>
@@ -58,7 +59,8 @@ export const AppSidebar = () => {
   const { profile } = useUserProfile();
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
-  const { state } = useSidebar();
+  const { state, isMobile, setOpenMobile } = useSidebar();
+  const { avatarUrl } = useRealtimeAvatar();
 
   const navItems = [
     { icon: Home, label: 'Home', path: '/', color: 'text-blue-500' },
@@ -72,29 +74,27 @@ export const AppSidebar = () => {
 
   const isCollapsed = state === 'collapsed';
 
+  // Close mobile sidebar when navigation item is clicked
+  const handleNavClick = () => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  };
+
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
       <SidebarHeader className="border-b border-sidebar-border/50">
         <div className="flex items-center justify-between p-2">
-          <motion.div 
+          <motion.div
             className="flex items-center space-x-3"
             whileHover={{ scale: 1.05 }}
             transition={{ type: "spring", stiffness: 400 }}
           >
-            <div className="relative flex items-center justify-center">
-              {/* Light mode logo */}
-              <img 
-                src="/lovable-uploads/e51f26a6-a9d4-4b1f-a787-2f24bdc5c8bf.png" 
-                alt="CampuzBuzz Logo" 
-                className="w-10 h-10 object-contain dark:hidden"
-              />
-              {/* Dark mode logo */}
-              <img 
-                src="/5.png" 
-                alt="CampuzBuzz Logo" 
-                className="w-10 h-10 object-contain hidden dark:block"
-              />
-            </div>
+            <img
+              src={theme === 'dark' ? '/lovable-uploads/campuzbuzz-logo-blue.png' : '/lovable-uploads/e51f26a6-a9d4-4b1f-a787-2f24bdc5c8bf.png'}
+              alt="CampuzBuzz Logo"
+              className="h-8 w-8 object-contain"
+            />
             {!isCollapsed && (
               <span className="text-lg font-bold gradient-text bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
                 CampuzBuzz
@@ -108,40 +108,40 @@ export const AppSidebar = () => {
         {!isCollapsed && (
           <div className="p-2">
             <NavLink to="/profile">
-              <motion.div 
+              <motion.div
                 className="flex items-center space-x-3 p-2 rounded-lg hover:bg-sidebar-accent/50 transition-colors cursor-pointer"
                 whileHover={{ scale: 1.02 }}
               >
-              <div className="relative">
-                <Avatar className="h-10 w-10 ring-2 ring-primary/20">
-                  <AvatarImage src={profile?.avatar_url} />
-                  <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
-                    {profile?.display_name?.charAt(0) || 'U'}
-                  </AvatarFallback>
-                </Avatar>
-                <StatusIndicator 
-                  status="online" 
-                  className="absolute -bottom-1 -right-1" 
-                />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center space-x-2 mb-1">
-                  <p className="text-sm font-semibold text-sidebar-foreground truncate">
-                    {profile?.display_name || 'User'}
+                <div className="relative">
+                  <Avatar className="h-10 w-10 ring-2 ring-primary/20">
+                    <AvatarImage src={avatarUrl || profile?.avatar_url || undefined} />
+                    <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
+                      {profile?.display_name?.charAt(0) || 'U'}
+                    </AvatarFallback>
+                  </Avatar>
+                  <StatusIndicator
+                    status="online"
+                    className="absolute -bottom-1 -right-1"
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center space-x-2 mb-1">
+                    <p className="text-sm font-semibold text-sidebar-foreground truncate">
+                      {profile?.display_name || 'User'}
+                    </p>
+                    {profile?.role && getRoleBadge(profile.role)}
+                  </div>
+                  <p className="text-xs text-sidebar-foreground/70 truncate">
+                    {profile?.major} • {profile?.year}
                   </p>
-                  {profile?.role && getRoleBadge(profile.role)}
+                  <div className="flex items-center space-x-1 mt-1">
+                    <Zap className="h-3 w-3 text-yellow-500" />
+                    <span className="text-xs text-sidebar-foreground/70">
+                      {profile?.engagement_score || 0} pts
+                    </span>
+                  </div>
                 </div>
-                <p className="text-xs text-sidebar-foreground/70 truncate">
-                  {profile?.major} • {profile?.year}
-                </p>
-                <div className="flex items-center space-x-1 mt-1">
-                  <Zap className="h-3 w-3 text-yellow-500" />
-                  <span className="text-xs text-sidebar-foreground/70">
-                    {profile?.engagement_score || 0} pts
-                  </span>
-                </div>
-              </div>
-            </motion.div>
+              </motion.div>
             </NavLink>
           </div>
         )}
@@ -167,12 +167,12 @@ export const AppSidebar = () => {
                 const isActive = location.pathname === item.path;
                 return (
                   <SidebarMenuItem key={item.path}>
-                    <SidebarMenuButton 
+                    <SidebarMenuButton
                       asChild
                       isActive={isActive}
                       tooltip={isCollapsed ? item.label : undefined}
                     >
-                      <NavLink to={item.path}>
+                      <NavLink to={item.path} onClick={handleNavClick}>
                         <item.icon className={`h-4 w-4 ${isActive ? '' : item.color}`} />
                         <span>{item.label}</span>
                       </NavLink>
@@ -188,7 +188,7 @@ export const AppSidebar = () => {
       <SidebarFooter className="border-t border-sidebar-border/50">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton 
+            <SidebarMenuButton
               onClick={toggleTheme}
               tooltip={isCollapsed ? (theme === 'dark' ? 'Light Mode' : 'Dark Mode') : undefined}
             >
@@ -201,7 +201,7 @@ export const AppSidebar = () => {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton 
+            <SidebarMenuButton
               onClick={signOut}
               tooltip={isCollapsed ? 'Sign Out' : undefined}
             >

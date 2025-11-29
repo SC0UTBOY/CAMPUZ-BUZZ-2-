@@ -55,71 +55,68 @@ export const useOptimizedProfile = () => {
     if (!user) return null;
 
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
+      // For the current user, we should rely on the Auth metadata as the source of truth
+      // because the 'profiles' view might not contain all fields (like bio, major, etc.)
+      // unless they are explicitly exposed in the view definition.
+      // Also, we can't write to the view, so we must read from where we write (metadata).
+
+      const { data: { user: freshUser }, error } = await supabase.auth.getUser();
 
       if (error) {
-        if (error.code === 'PGRST116') {
-          // Create profile if it doesn't exist
-          const { data: newProfile, error: createError } = await supabase
-            .from('profiles')
-            .insert({
-              user_id: user.id,
-              display_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'New User',
-              role: 'student',
-              engagement_score: 0,
-              privacy_settings: {
-                email_visible: false,
-                profile_visible: true,
-                academic_info_visible: true,
-                notifications: {
-                  posts: true,
-                  comments: true,
-                  mentions: true,
-                  messages: true,
-                  events: true
-                }
-              }
-            })
-            .select()
-            .single();
-
-          if (createError) {
-            console.error('Error creating profile:', createError);
-            throw createError;
-          }
-          
-          // Convert the data to match our interface
-          return {
-            ...newProfile,
-            social_links: convertJsonToRecord(newProfile.social_links),
-            privacy_settings: convertJsonToRecord(newProfile.privacy_settings)
-          } as OptimizedUserProfile;
-        }
-        console.error('Error fetching profile:', error);
+        console.error('Error fetching user data:', error);
         throw error;
       }
 
-      // Convert the data to match our interface
-      return {
-        ...data,
-        social_links: convertJsonToRecord(data.social_links),
-        privacy_settings: convertJsonToRecord(data.privacy_settings)
-      } as OptimizedUserProfile;
+      if (!freshUser) return null;
+
+      const metadata = freshUser.user_metadata || {};
+
+      // Construct the profile object from metadata
+      const userProfile: OptimizedUserProfile = {
+        id: freshUser.id,
+        user_id: freshUser.id,
+        display_name: metadata.display_name || metadata.full_name || freshUser.email?.split('@')[0] || 'User',
+        bio: metadata.bio,
+        avatar_url: metadata.avatar_url,
+        major: metadata.major,
+        department: metadata.department,
+        year: metadata.year,
+        role: metadata.role || 'student',
+        engagement_score: metadata.engagement_score || 0,
+        school: metadata.school,
+        gpa: metadata.gpa,
+        graduation_year: metadata.graduation_year,
+        skills: metadata.skills || [],
+        interests: metadata.interests || [],
+        social_links: convertJsonToRecord(metadata.social_links),
+        privacy_settings: convertJsonToRecord(metadata.privacy_settings) || {
+          email_visible: false,
+          profile_visible: true,
+          academic_info_visible: true,
+          notifications: {
+            posts: true,
+            comments: true,
+            mentions: true,
+            messages: true,
+            events: true
+          }
+        },
+        created_at: freshUser.created_at,
+        updated_at: freshUser.updated_at || new Date().toISOString(),
+      };
+
+      return userProfile;
     } catch (error) {
       console.error('Profile fetch error:', error);
       throw error;
     }
   }, [user]);
 
-  const { 
-    data: fetchedProfile, 
-    loading, 
-    error, 
-    retry 
+  const {
+    data: fetchedProfile,
+    loading,
+    error,
+    retry
   } = useRetryableQuery({
     queryFn: fetchProfile,
     retryAttempts: 2,
@@ -144,29 +141,36 @@ export const useOptimizedProfile = () => {
       const optimisticProfile = { ...profile, ...updates };
       setProfile(optimisticProfile);
 
-      const { data, error } = await supabase
-        .from('profiles')
-        .update({
-          ...updates,
+      // Update Supabase Auth Metadata
+      // We filter out fields that shouldn't be in metadata or are read-only from auth user
+      const { id, user_id, created_at, updated_at, ...metadataUpdates } = updates;
+
+      const { data, error } = await supabase.auth.updateUser({
+        data: {
+          ...metadataUpdates,
           updated_at: new Date().toISOString()
-        })
-        .eq('user_id', user.id)
-        .select()
-        .single();
+        }
+      });
 
       if (error) {
         console.error('Profile update error:', error);
         throw error;
       }
 
-      // Convert the data to match our interface
-      const convertedProfile: OptimizedUserProfile = {
-        ...data,
-        social_links: convertJsonToRecord(data.social_links),
-        privacy_settings: convertJsonToRecord(data.privacy_settings)
-      } as OptimizedUserProfile;
-      
-      setProfile(convertedProfile);
+      if (data.user) {
+        // Re-fetch or re-construct profile to ensure consistency
+        const metadata = data.user.user_metadata || {};
+        const updatedProfile: OptimizedUserProfile = {
+          ...profile,
+          ...updates, // Apply updates
+          // Ensure critical fields are preserved
+          id: data.user.id,
+          user_id: data.user.id,
+          updated_at: data.user.updated_at || new Date().toISOString(),
+        };
+        setProfile(updatedProfile);
+      }
+
       return true;
     } catch (error) {
       // Revert optimistic update on error

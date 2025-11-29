@@ -22,7 +22,7 @@ export const FixedDuplicateLikeButton: React.FC<FixedDuplicateLikeButtonProps> =
   size = 'md',
   showCount = true,
   disabled = false,
-  onLikeChange
+  onLikeChange,
 }) => {
   const [isLiked, setIsLiked] = useState(initialLiked);
   const [likeCount, setLikeCount] = useState(initialCount);

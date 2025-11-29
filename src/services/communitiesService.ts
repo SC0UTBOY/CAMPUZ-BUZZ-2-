@@ -6,20 +6,22 @@ export interface Community {
   name: string;
   description: string;
   category?: string;
+  is_private: boolean;
+  member_count: number;
   memberCount: number;
   isJoined: boolean;
-  avatar_url?: string;
-  is_private: boolean;
   created_by: string;
   created_at: string;
+  updated_at: string;
 }
 
 class CommunitiesService {
   async getCommunities(category?: string): Promise<Community[]> {
     try {
+      // Select actual schema columns
       let query = supabase
         .from('communities')
-        .select('*');
+        .select('id, name, description, category, is_private, member_count, created_by, created_at, updated_at');
 
       if (category) {
         query = query.eq('category', category);
@@ -47,7 +49,7 @@ class CommunitiesService {
               .select('id')
               .eq('community_id', community.id)
               .eq('user_id', userId)
-              .single();
+              .maybeSingle();
             
             isJoined = !!membership;
           }
@@ -67,53 +69,83 @@ class CommunitiesService {
     }
   }
 
-  async joinCommunity(communityId: string, userId: string): Promise<void> {
+  async joinCommunity(communityId: string, userId: string): Promise<{ success: boolean; message?: string; error?: string }> {
     try {
-      // Check if already a member
-      const { data: existingMember } = await supabase
+      // Validate UUID format
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(communityId)) {
+        console.error('❌ Invalid community ID format:', communityId);
+        throw new Error('Invalid community ID');
+      }
+      if (!uuidRegex.test(userId)) {
+        console.error('❌ Invalid user ID format:', userId);
+        throw new Error('Invalid user ID');
+      }
+
+      console.log('🔵 JOIN DEBUG - Community ID:', communityId);
+      console.log('🔵 JOIN DEBUG - User ID:', userId);
+
+
+      // Check if already a member using maybeSingle to avoid errors
+      const { data: existingMember, error: checkError } = await supabase
         .from('community_members')
         .select('id')
         .eq('community_id', communityId)
         .eq('user_id', userId)
-        .single();
+        .maybeSingle();
 
-      if (existingMember) {
-        throw new Error('Already a member of this community');
+      if (checkError) {
+        console.error('❌ Membership check error:', checkError);
+        return { success: false, error: 'Could not check membership.' };
       }
 
-      // Join the community
+      if (existingMember) {
+        console.log('ℹ️ Already a member');
+        return { success: true, message: 'Already joined.' };
+      }
+
+      // Join the community - roles is uuid[], NOT string[]
       const { error } = await supabase
         .from('community_members')
         .insert({
           community_id: communityId,
-          user_id: userId
+          user_id: userId,
+          joined_at: new Date().toISOString(),
+          roles: [], // Empty array - roles are uuid references
+          banned: false
         });
 
       if (error) {
-        console.error('Error joining community:', error);
-        throw error;
+        console.error('❌ JOIN ERROR:', error);
+        console.error('JOIN ERROR DETAILS:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+          communityId: communityId,
+          userId: userId
+        });
+        return { success: false, error: `Failed to join community: ${error.message}` };
       }
 
-      // Update member count manually
-      const { data: community } = await supabase
+      // Update member count
+      const { data: communityData } = await supabase
         .from('communities')
         .select('member_count')
         .eq('id', communityId)
         .single();
 
-      if (community) {
-        const { error: updateError } = await supabase
+      if (communityData) {
+        await supabase
           .from('communities')
-          .update({ member_count: (community.member_count || 0) + 1 })
+          .update({ member_count: (communityData.member_count || 0) + 1 })
           .eq('id', communityId);
-
-        if (updateError) {
-          console.warn('Error updating member count:', updateError);
-        }
       }
-    } catch (error) {
-      console.error('Error in joinCommunity:', error);
-      throw error;
+
+      return { success: true, message: 'Successfully joined community!' };
+    } catch (error: any) {
+      console.error('joinCommunity() Error:', error.message);
+      return { success: false, error: error.message };
     }
   }
 
@@ -131,22 +163,18 @@ class CommunitiesService {
         throw error;
       }
 
-      // Update member count manually
-      const { data: community } = await supabase
+      // Update member count
+      const { data: communityData } = await supabase
         .from('communities')
         .select('member_count')
         .eq('id', communityId)
         .single();
 
-      if (community) {
-        const { error: updateError } = await supabase
+      if (communityData) {
+        await supabase
           .from('communities')
-          .update({ member_count: Math.max(0, (community.member_count || 0) - 1) })
+          .update({ member_count: Math.max(0, (communityData.member_count || 0) - 1) })
           .eq('id', communityId);
-
-        if (updateError) {
-          console.warn('Error updating member count:', updateError);
-        }
       }
     } catch (error) {
       console.error('Error in leaveCommunity:', error);
@@ -164,7 +192,10 @@ class CommunitiesService {
       const { data, error } = await supabase
         .from('communities')
         .insert({
-          ...communityData,
+          name: communityData.name,
+          description: communityData.description,
+          category: communityData.category,
+          is_private: communityData.is_private || false,
           created_by: userId,
           member_count: 1
         })
@@ -181,7 +212,7 @@ class CommunitiesService {
 
       return {
         ...data,
-        memberCount: 1,
+        memberCount: data.member_count || 1,
         isJoined: true
       } as Community;
     } catch (error) {

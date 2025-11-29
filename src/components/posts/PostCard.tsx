@@ -1,128 +1,239 @@
-
 import React, { useState } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Heart, MessageCircle, Bookmark } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
+import { PostData, CommentData, PostsService } from '@/services/postsService';
+import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
-import { Heart, MessageSquare, Share2, MoreHorizontal } from 'lucide-react';
-import RobustHashtagMentionText from '@/components/common/RobustHashtagMentionText';
-import { EnhancedLikeButton } from '@/components/posts/EnhancedLikeButton';
-import { useEnhancedLikes } from '@/hooks/useEnhancedLikes';
-import { EnhancedCommentsSection } from '@/components/comments/EnhancedCommentsSection';
+import { Textarea } from '@/components/ui/textarea';
+import { cn } from '@/lib/utils';
+import { HashtagText } from '@/components/common/HashtagText';
 
 interface PostCardProps {
-  post: {
-    id: string;
-    author: {
-      name: string;
-      avatar?: string;
-      major: string;
-      year: string;
-    };
-    content: string;
-    image?: string;
-    timestamp: string;
-    likes: number;
-    comments: number;
-    tags: string[];
-    isLiked: boolean;
-  };
-  onLike: (postId: string, isLiked: boolean) => Promise<void>;
+  post: PostData;
+  onPostUpdate?: () => void;
 }
 
-export const PostCard: React.FC<PostCardProps> = ({ post, onLike }) => {
+export function PostCard({ post, onPostUpdate }: PostCardProps) {
   const [showComments, setShowComments] = useState(false);
-  const { getLikeState } = useEnhancedLikes();
-  const likeState = getLikeState(post.id, post.isLiked, post.likes);
+  const [comments, setComments] = useState<CommentData[]>([]);
+  const [newComment, setNewComment] = useState('');
+  const [isLiking, setIsLiking] = useState(false);
+  const [isCommenting, setIsCommenting] = useState(false);
+  const [isLoadingComments, setIsLoadingComments] = useState(false);
+  const { toast } = useToast();
+
+  const handleLike = async () => {
+    if (isLiking) return;
+    setIsLiking(true);
+
+    try {
+      if (post.is_liked) {
+        await PostsService.unlikePost(post.id);
+      } else {
+        await PostsService.likePost(post.id);
+      }
+      onPostUpdate?.();
+    } catch (error) {
+      console.error('Error handling like:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update like. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLiking(false);
+    }
+  };
+
+  const handleToggleComments = async () => {
+    if (!showComments && comments.length === 0) {
+      setIsLoadingComments(true);
+      try {
+        const fetchedComments = await PostsService.getComments(post.id);
+        setComments(fetchedComments);
+      } catch (error) {
+        console.error('Error loading comments:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load comments.",
+          variant: "destructive"
+        });
+      } finally {
+        setIsLoadingComments(false);
+      }
+    }
+    setShowComments(!showComments);
+  };
+
+  const handleAddComment = async () => {
+    if (!newComment.trim() || isCommenting) return;
+
+    setIsCommenting(true);
+    try {
+      await PostsService.addComment(post.id, newComment.trim());
+      setNewComment('');
+
+      // Refresh comments
+      const updatedComments = await PostsService.getComments(post.id);
+      setComments(updatedComments);
+      onPostUpdate?.();
+
+      toast({
+        description: "Comment added successfully!"
+      });
+    } catch (error) {
+      console.error('Error adding comment:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add comment. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsCommenting(false);
+    }
+  };
 
   return (
-    <Card className="shadow-sm hover:shadow-md transition-shadow">
-      <CardContent className="p-6">
-        {/* Header */}
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex items-start space-x-3">
-            <Avatar className="h-12 w-12">
-              <AvatarImage src={post.author.avatar} />
-              <AvatarFallback>{post.author.name.charAt(0)}</AvatarFallback>
-            </Avatar>
-            <div>
-              <h3 className="font-semibold text-gray-900">{post.author.name}</h3>
-              <p className="text-sm text-gray-500">{post.author.major} • {post.author.year}</p>
-              <p className="text-xs text-gray-400">{post.timestamp}</p>
+    <Card className="p-6 space-y-4">
+      {/* Post Header */}
+      <div className="flex items-center space-x-3">
+        <Avatar>
+          <AvatarImage src={post.author.avatar} alt={post.author.display_name} />
+          <AvatarFallback>
+            {post.author.display_name.charAt(0).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+        <div>
+          <p className="font-semibold">{post.author.display_name}</p>
+          <p className="text-sm text-muted-foreground">
+            @{post.author.username} • {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
+          </p>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        {/* Hashtags - Instagram style (above image) */}
+        <HashtagText
+          text={post.content}
+          className="text-foreground whitespace-pre-wrap break-words"
+          onlyHashtags={true}
+        />
+
+        {/* Post Image */}
+        {post.image_url && (
+          <>
+            <div className="rounded-lg overflow-hidden">
+              <img
+                src={post.image_url}
+                alt="Post content"
+                className="w-full h-auto max-h-96 object-cover"
+                loading="lazy"
+              />
+            </div>
+
+            {/* Instagram-style caption with username */}
+            <div className="mt-3 text-sm">
+              <span className="font-semibold text-foreground mr-2">@{post.author.username}</span>
+              <span className="text-foreground">{post.content.replace(/#\w+/g, '').trim()}</span>
+            </div>
+          </>
+        )}
+
+        {/* For non-photo posts, show content normally */}
+        {!post.image_url && (
+          <HashtagText
+            text={post.content}
+            className="text-foreground whitespace-pre-wrap break-words"
+          />
+        )}
+      </div>
+
+      {/* Post Actions */}
+      <div className="flex items-center space-x-6 pt-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleLike}
+          disabled={isLiking}
+          className={cn(
+            "flex items-center space-x-2",
+            post.is_liked && "text-red-500"
+          )}
+        >
+          <Heart className={cn("h-4 w-4", post.is_liked && "fill-current")} />
+          <span>{post.likes}</span>
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleToggleComments}
+          className="flex items-center space-x-2"
+        >
+          <MessageCircle className="h-4 w-4" />
+          <span>{post.comments}</span>
+        </Button>
+
+      </div>
+
+      {/* Comments Section */}
+      {showComments && (
+        <div className="space-y-4 pt-4 border-t">
+          {/* Add Comment Form */}
+          <div className="space-y-2">
+            <Textarea
+              placeholder="Write a comment..."
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              className="min-h-[80px]"
+            />
+            <div className="flex justify-end">
+              <Button
+                onClick={handleAddComment}
+                disabled={!newComment.trim() || isCommenting}
+                size="sm"
+              >
+                {isCommenting ? "Posting..." : "Post Comment"}
+              </Button>
             </div>
           </div>
-          <Button variant="ghost" size="sm">
-            <MoreHorizontal className="h-4 w-4" />
-          </Button>
-        </div>
 
-        {/* Content */}
-        <div className="mb-4">
-          <div className="text-gray-800 leading-relaxed mb-3">
-            <RobustHashtagMentionText text={post.content} />
-          </div>
-          
-          {post.image && (
-            <div className="rounded-lg overflow-hidden bg-gray-100">
-              <img 
-                src={post.image} 
-                alt="Post content" 
-                className="w-full h-64 object-cover"
-              />
+          {/* Comments List */}
+          {isLoadingComments ? (
+            <div className="text-center py-4">Loading comments...</div>
+          ) : (
+            <div className="space-y-3">
+              {comments.map((comment) => (
+                <div key={comment.id} className="flex space-x-3 p-3 bg-muted/50 rounded-lg">
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={comment.author.avatar} alt={comment.author.display_name || comment.author.username || 'User'} />
+                    <AvatarFallback>
+                      {(comment.author.display_name || comment.author.username || 'User').charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 space-y-1">
+                    <div className="flex items-center space-x-2">
+                      <span className="font-medium text-sm">{comment.author.display_name || comment.author.username || 'User'}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}
+                      </span>
+                    </div>
+                    <p className="text-sm">{comment.content}</p>
+                  </div>
+                </div>
+              ))}
+
+              {comments.length === 0 && (
+                <div className="text-center py-4 text-muted-foreground">
+                  No comments yet. Be the first to comment!
+                </div>
+              )}
             </div>
           )}
         </div>
-
-        {/* Tags */}
-        {post.tags.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-4">
-            {post.tags.map((tag) => (
-              <Badge key={tag} variant="secondary" className="text-xs">
-                #{tag.replace(/\s+/g, '')}
-              </Badge>
-            ))}
-          </div>
-        )}
-
-        {/* Actions */}
-        <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-          <div className="flex items-center space-x-4">
-            <EnhancedLikeButton
-              postId={post.id}
-              initialLiked={likeState.isLiked}
-              initialCount={likeState.count}
-              onLike={onLike}
-              size="sm"
-              showCount={true}
-            />
-            
-            <Button 
-              variant="ghost" 
-              size="sm"
-              onClick={() => setShowComments(!showComments)}
-              className="flex items-center space-x-2 text-gray-500"
-            >
-              <MessageSquare className="h-4 w-4" />
-              <span>{post.comments}</span>
-            </Button>
-            
-            <Button variant="ghost" size="sm" className="text-gray-500">
-              <Share2 className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-
-        {/* Comments Section */}
-        {showComments && (
-          <div className="mt-4">
-            <EnhancedCommentsSection
-              postId={post.id}
-              initialCommentsCount={post.comments}
-              compact={false}
-            />
-          </div>
-        )}
-      </CardContent>
+      )}
     </Card>
   );
-};
+}

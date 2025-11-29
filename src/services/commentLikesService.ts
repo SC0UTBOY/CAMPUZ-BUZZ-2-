@@ -63,32 +63,41 @@ export class CommentLikesService {
   }
 
   // Toggle like status (like if not liked, unlike if liked)
+  // Toggle like status (like if not liked, unlike if liked)
   static async toggleLike(commentId: string): Promise<{ liked: boolean; likeCount: number }> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
-      // Check if already liked
-      const { data: existingLike, error: checkError } = await supabase
+      // First, try to insert a like
+      const { error: insertError } = await supabase
         .from('comment_likes')
-        .select('id')
-        .eq('comment_id', commentId)
-        .eq('user_id', user.id)
-        .maybeSingle();
+        .insert({ comment_id: commentId, user_id: user.id });
 
-      if (checkError) throw checkError;
+      let liked = true;
 
-      if (existingLike) {
-        // Unlike
-        await this.unlikeComment(commentId);
-        const likeCount = await this.getLikeCount(commentId);
-        return { liked: false, likeCount };
-      } else {
-        // Like
-        await this.likeComment(commentId);
-        const likeCount = await this.getLikeCount(commentId);
-        return { liked: true, likeCount };
+      if (insertError) {
+        // If the insert fails with a unique constraint violation, it means the user has already liked the comment.
+        // In this case, we should unlike it.
+        if (insertError.code === '23505') {
+          const { error: deleteError } = await supabase
+            .from('comment_likes')
+            .delete()
+            .eq('comment_id', commentId)
+            .eq('user_id', user.id);
+
+          if (deleteError) throw deleteError;
+          liked = false;
+        } else {
+          // For other errors, we should throw.
+          throw insertError;
+        }
       }
+
+      // Get the new like count
+      const likeCount = await this.getLikeCount(commentId);
+
+      return { liked, likeCount };
     } catch (error) {
       console.error('Error toggling like:', error);
       throw error;
@@ -139,7 +148,7 @@ export class CommentLikesService {
         .from('comment_likes')
         .select(`
           *,
-          profiles!inner (
+          profiles (
             id,
             display_name,
             avatar_url
@@ -150,10 +159,18 @@ export class CommentLikesService {
 
       if (error) throw error;
 
-      return (data || []).map(like => ({
-        ...like,
-        profiles: Array.isArray(like.profiles) ? like.profiles[0] : like.profiles
-      }));
+      return (data || []).map(like => {
+        const profile = Array.isArray(like.profiles) ? like.profiles[0] : like.profiles;
+        
+        return {
+          ...like,
+          profiles: profile || {
+            id: 'unknown',
+            display_name: 'Unknown User',
+            avatar_url: undefined
+          }
+        };
+      });
     } catch (error) {
       console.error('Error getting comment likes:', error);
       return [];
@@ -202,6 +219,18 @@ export class CommentLikesService {
     }
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

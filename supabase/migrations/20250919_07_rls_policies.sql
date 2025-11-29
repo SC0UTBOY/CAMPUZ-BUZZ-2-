@@ -25,7 +25,7 @@ CREATE POLICY "Anyone can view public posts" ON public.posts
     visibility = 'public' OR 
     auth.uid() = user_id OR
     (visibility = 'community' AND community_id IN (
-      SELECT community_id FROM public.community_memberships 
+      SELECT community_id FROM public.community_members 
       WHERE user_id = auth.uid()
     ))
   );
@@ -52,7 +52,7 @@ CREATE POLICY "Anyone can view comments on visible posts" ON public.comments
       WHERE visibility = 'public' OR 
             auth.uid() = user_id OR
             (visibility = 'community' AND community_id IN (
-              SELECT community_id FROM public.community_memberships 
+              SELECT community_id FROM public.community_members 
               WHERE user_id = auth.uid()
             ))
     )
@@ -98,7 +98,7 @@ CREATE POLICY "Anyone can view public communities" ON public.communities_enhance
     NOT is_private OR 
     auth.uid() = created_by OR
     id IN (
-      SELECT community_id FROM public.community_memberships 
+      SELECT community_id FROM public.community_members 
       WHERE user_id = auth.uid()
     )
   );
@@ -109,24 +109,24 @@ CREATE POLICY "Users can create communities" ON public.communities_enhanced
 CREATE POLICY "Community creators can update their communities" ON public.communities_enhanced
   FOR UPDATE USING (auth.uid() = created_by);
 
--- Community Memberships Policies
-DROP POLICY IF EXISTS "Users can view community memberships" ON public.community_memberships;
-DROP POLICY IF EXISTS "Users can join communities" ON public.community_memberships;
-DROP POLICY IF EXISTS "Users can leave communities" ON public.community_memberships;
+-- Community Members Policies (renamed from community_memberships)
+DROP POLICY IF EXISTS "Users can view community members" ON public.community_members;
+DROP POLICY IF EXISTS "Users can join communities" ON public.community_members;
+DROP POLICY IF EXISTS "Users can leave communities" ON public.community_members;
 
-CREATE POLICY "Users can view community memberships" ON public.community_memberships
+CREATE POLICY "Users can view community members" ON public.community_members
   FOR SELECT USING (
     user_id = auth.uid() OR
     community_id IN (
-      SELECT community_id FROM public.community_memberships cm
+      SELECT community_id FROM public.community_members cm
       WHERE cm.user_id = auth.uid()
     )
   );
 
-CREATE POLICY "Users can join communities" ON public.community_memberships
+CREATE POLICY "Users can join communities" ON public.community_members
   FOR INSERT WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "Users can leave communities" ON public.community_memberships
+CREATE POLICY "Users can leave communities" ON public.community_members
   FOR DELETE USING (auth.uid() = user_id);
 
 -- Study Groups Policies

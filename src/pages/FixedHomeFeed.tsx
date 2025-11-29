@@ -69,21 +69,22 @@ export const FixedHomeFeed = () => {
               key={post.id}
               post={{
                 id: post.id,
+                author_id: post.user_id,
                 author: {
-                  name: post.profiles?.display_name || 'Anonymous User',
-                  avatar: post.profiles?.avatar_url,
-                  major: post.profiles?.major || '',
-                  year: post.profiles?.year || ''
+                  id: post.user_id,
+                  username: post.profiles?.display_name?.toLowerCase().replace(/\s+/g, '_') || 'anonymous',
+                  display_name: post.profiles?.display_name || 'Anonymous User',
+                  avatar: post.profiles?.avatar_url || ''
                 },
                 content: post.content,
-                image: post.image_url,
-                timestamp: post.created_at,
+                image_url: post.image_url,
+                created_at: post.created_at,
+                updated_at: post.updated_at || post.created_at,
                 likes: post.likes_count,
                 comments: post.comments_count,
-                tags: post.tags || [],
-                isLiked: false
+                is_liked: false
               }}
-              onLike={() => handleLikePost(post.id)}
+              onPostUpdate={() => {}}
             />
           ))
         )}

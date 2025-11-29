@@ -1,5 +1,6 @@
 
 import { DatabasePost, Profile, PostReactions, EnhancedPostData } from '@/types/posts';
+import { mediaService } from '@/services/mediaService';
 
 // Utility function to safely convert JSON to PostReactions
 export const safeParseReactions = (reactions: any): PostReactions => {
@@ -26,12 +27,18 @@ export const transformDatabasePostToPost = (post: DatabasePost, profile: Profile
   // Safely parse reactions from database JSON
   const reactions = safeParseReactions(post.reactions);
 
+  // Resolve image URL from storage path when necessary
+  const resolvedImageUrl = post.image_url
+    ? (mediaService.isValidUrl(post.image_url)
+        ? post.image_url
+        : mediaService.resolvePublicUrl(post.image_url || post.file_url || '', 'posts'))
+    : (post.file_url || undefined);
+
   return {
     ...post,
+    image_url: resolvedImageUrl,
     post_type: (post.post_type as 'text' | 'image' | 'video' | 'poll') || 'text',
     visibility: (post.visibility as 'public' | 'friends' | 'private') || 'public',
-    hashtags: post.hashtags || [],
-    mentions: post.mentions || [],
     reactions,
     author: {
       id: post.user_id,

@@ -22,6 +22,7 @@ interface FixedPost {
   likes_count: number;
   comments_count: number;
   created_at: string;
+  updated_at?: string;
   profiles?: PostProfile;
 }
 

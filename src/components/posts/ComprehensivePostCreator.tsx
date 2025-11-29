@@ -54,7 +54,6 @@ export const ComprehensivePostCreator: React.FC<ComprehensivePostCreatorProps> =
   const [isLoading, setIsLoading] = useState(false);
   const [visibility, setVisibility] = useState<'public' | 'friends' | 'private'>('public');
   const [location, setLocation] = useState<Location | null>(null);
-  const [hashtags, setHashtags] = useState<string[]>([]);
   const [mentions, setMentions] = useState<string[]>([]);
   const [scheduleDate, setScheduleDate] = useState<string>('');
   const [isPoll, setIsPoll] = useState(false);
@@ -70,10 +69,6 @@ export const ComprehensivePostCreator: React.FC<ComprehensivePostCreatorProps> =
 
   const handleContentChange = (value: string) => {
     setContent(value);
-    
-    // Extract hashtags
-    const hashtagMatches = value.match(/#\w+/g) || [];
-    setHashtags(hashtagMatches.map(tag => tag.slice(1)));
     
     // Extract mentions
     const mentionMatches = value.match(/@\w+/g) || [];
@@ -123,7 +118,7 @@ export const ComprehensivePostCreator: React.FC<ComprehensivePostCreatorProps> =
         post_type: uploadHook.hasCompleted ? 'image' as const : 'text' as const,
         images: uploadHook.getCompletedFiles(),
         location: location?.name,
-        tags: hashtags,
+        tags: [],
         mentions,
         scheduled_at: scheduleDate || undefined
       };
@@ -295,19 +290,13 @@ export const ComprehensivePostCreator: React.FC<ComprehensivePostCreatorProps> =
 
           {/* Tags Preview */}
           <AnimatePresence>
-            {(hashtags.length > 0 || mentions.length > 0) && (
+            {mentions.length > 0 && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
                 className="flex flex-wrap gap-2"
               >
-                {hashtags.map((tag) => (
-                  <Badge key={`#${tag}`} variant="secondary" className="text-blue-600 bg-blue-100 dark:bg-blue-900/20">
-                    <Hash className="h-3 w-3 mr-1" />
-                    {tag}
-                  </Badge>
-                ))}
                 {mentions.map((mention) => (
                   <Badge key={`@${mention}`} variant="secondary" className="text-green-600 bg-green-100 dark:bg-green-900/20">
                     <AtSign className="h-3 w-3 mr-1" />

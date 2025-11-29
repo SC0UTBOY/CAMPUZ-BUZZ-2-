@@ -53,7 +53,7 @@ class RealtimeChatService {
 
     // Add creator as participant
     await this.joinRoom(room.id);
-    
+
     return room;
   }
 
@@ -95,16 +95,16 @@ class RealtimeChatService {
     // Get user profiles for message authors
     const userIds = [...new Set(messages.map(m => m.user_id))];
     const { data: profiles } = await supabase
-      .from('profiles')
-      .select('user_id, display_name, avatar_url')
-      .in('user_id', userIds);
+      .from('user_profiles' as any)
+      .select('id, username, display_name, avatar_url')
+      .in('id', userIds);
 
     return messages.map(msg => ({
       ...msg,
       author: {
         id: msg.user_id,
-        display_name: profiles?.find(p => p.user_id === msg.user_id)?.display_name || 'Unknown User',
-        avatar_url: profiles?.find(p => p.user_id === msg.user_id)?.avatar_url
+        display_name: profiles?.find((p: any) => p.id === msg.user_id)?.display_name || 'Unknown User',
+        avatar_url: profiles?.find((p: any) => p.id === msg.user_id)?.avatar_url
       }
     })).reverse() as MessageWithAuthor[];
   }
@@ -173,9 +173,9 @@ class RealtimeChatService {
         async (payload) => {
           // Get author profile
           const { data: profile } = await supabase
-            .from('profiles')
-            .select('user_id, display_name, avatar_url')
-            .eq('user_id', payload.new.user_id)
+            .from('user_profiles' as any)
+            .select('id, display_name, avatar_url')
+            .eq('id', payload.new.user_id)
             .single();
 
           const messageWithAuthor: MessageWithAuthor = {
@@ -215,15 +215,15 @@ class RealtimeChatService {
             .from('typing_status')
             .select(`
               user_id,
-              profiles!inner(display_name)
+              user_profiles!inner(display_name)
             `)
             .eq('room_id', roomId)
             .gte('started_at', new Date(Date.now() - 10000).toISOString()); // Last 10 seconds
 
-          const typingUsers = typingStatuses?.map(t => 
-            (t as any).profiles.display_name
+          const typingUsers = typingStatuses?.map(t =>
+            (t as any).user_profiles.display_name
           ) || [];
-          
+
           callback(typingUsers);
         }
       )

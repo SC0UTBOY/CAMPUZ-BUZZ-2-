@@ -11,7 +11,6 @@ export class PostActions {
     user_id: string;
     visibility: 'public' | 'friends' | 'private';
     tags?: string[];
-    mentions?: string[];
     image_url?: string;
   }): Promise<Post> {
     try {
@@ -45,6 +44,7 @@ export class PostActions {
         throw new Error('No data returned from post creation');
       }
 
+
       // Safely parse reactions with proper type checking
       const reactions = safeParseReactions(data.reactions);
 
@@ -52,8 +52,6 @@ export class PostActions {
         ...data,
         post_type: data.post_type as 'text' | 'image' | 'video' | 'poll',
         visibility: data.visibility as 'public' | 'friends' | 'private',
-        hashtags: [],
-        mentions: [],
         reactions,
       } as Post;
     } catch (error) {

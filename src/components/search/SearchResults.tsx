@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Calendar, MapPin, Users, Heart, MessageCircle, Share2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useToast } from '@/hooks/use-toast';
 
 export interface SearchResultsProps {
   results: SearchResult[];
@@ -19,6 +20,36 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
   isLoading,
   total
 }) => {
+  const { toast } = useToast();
+
+  const handleJoinCommunity = async (communityId: string) => {
+    try {
+      console.log("JOIN ID SENT =", communityId);
+      
+      // Import the clean join function
+      const { joinCommunity } = await import('@/services/communityActions');
+      
+      const result = await joinCommunity(communityId);
+      
+      if (!result.success) {
+        throw result.error || new Error("Failed to join community");
+      }
+      
+      toast({
+        title: "✅ Joined community!",
+        description: "You are now a member of this community."
+      });
+      
+    } catch (error: any) {
+      console.error('❌ Join error:', error);
+      toast({
+        title: "Failed to join",
+        description: error?.message || "An error occurred while joining the community.",
+        variant: "destructive"
+      });
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -171,7 +202,12 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
                     <Users className="h-4 w-4" />
                     <span>{result.member_count || 0} members</span>
                   </div>
-                  <Button size="sm">Join</Button>
+                  <Button 
+                    size="sm"
+                    onClick={() => handleJoinCommunity(result.id)}
+                  >
+                    Join
+                  </Button>
                 </div>
               </div>
             )}

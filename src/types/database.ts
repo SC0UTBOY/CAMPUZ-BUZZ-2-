@@ -216,53 +216,41 @@ export interface Database {
           created_at?: string
         }
       }
-      communities_enhanced: {
+      communities: {
         Row: {
-          id: string
-          name: string
-          description: string | null
-          avatar_url: string | null
-          banner_url: string | null
-          invite_code: string | null
-          is_private: boolean
-          member_count: number
-          welcome_message: string | null
-          rules: string | null
-          slow_mode_seconds: number
-          created_by: string
+          category: string | null
           created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          is_private: boolean | null
+          member_count: number | null
+          name: string
+          search_vector: unknown | null
           updated_at: string
         }
         Insert: {
-          id?: string
-          name: string
-          description?: string | null
-          avatar_url?: string | null
-          banner_url?: string | null
-          invite_code?: string | null
-          is_private?: boolean
-          member_count?: number
-          welcome_message?: string | null
-          rules?: string | null
-          slow_mode_seconds?: number
-          created_by: string
+          category?: string | null
           created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          is_private?: boolean | null
+          member_count?: number | null
+          name: string
+          search_vector?: unknown | null
           updated_at?: string
         }
         Update: {
-          id?: string
-          name?: string
-          description?: string | null
-          avatar_url?: string | null
-          banner_url?: string | null
-          invite_code?: string | null
-          is_private?: boolean
-          member_count?: number
-          welcome_message?: string | null
-          rules?: string | null
-          slow_mode_seconds?: number
-          created_by?: string
+          category?: string | null
           created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          is_private?: boolean | null
+          member_count?: number | null
+          name?: string
+          search_vector?: unknown | null
           updated_at?: string
         }
       }
@@ -502,9 +490,9 @@ export type CommentUpdate = Database['public']['Tables']['comments']['Update']
 export type Like = Database['public']['Tables']['likes']['Row']
 export type LikeInsert = Database['public']['Tables']['likes']['Insert']
 
-export type Community = Database['public']['Tables']['communities_enhanced']['Row']
-export type CommunityInsert = Database['public']['Tables']['communities_enhanced']['Insert']
-export type CommunityUpdate = Database['public']['Tables']['communities_enhanced']['Update']
+export type Community = Database['public']['Tables']['communities']['Row']
+export type CommunityInsert = Database['public']['Tables']['communities']['Insert']
+export type CommunityUpdate = Database['public']['Tables']['communities']['Update']
 
 export type StudyGroup = Database['public']['Tables']['study_groups']['Row']
 export type StudyGroupInsert = Database['public']['Tables']['study_groups']['Insert']

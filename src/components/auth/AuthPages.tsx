@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, UserPlus, LogIn, BookOpen, Users, Calendar, MessageSquare } from 'lucide-react';
+import ForgotPassword from '@/pages/ForgotPassword';
 
 export const AuthPages: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -23,6 +25,7 @@ export const AuthPages: React.FC = () => {
 
   const { signIn, signUp } = useAuth();
   const { toast } = useToast();
+  const location = useLocation();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,6 +72,10 @@ export const AuthPages: React.FC = () => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  if (location.pathname === '/forgot-password') {
+    return <ForgotPassword />;
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-secondary/5 flex items-center justify-center p-4">
       <div className="w-full max-w-6xl grid lg:grid-cols-2 gap-8 items-center">
@@ -99,9 +106,9 @@ export const AuthPages: React.FC = () => {
                 <Users className="h-6 w-6 text-primary" />
               </div>
               <div>
-                <h3 className="font-semibold">Study Groups</h3>
+                <h3 className="font-semibold">Communities</h3>
                 <p className="text-sm text-muted-foreground">
-                  Join or create study groups with classmates
+                  Join communities and connect with classmates
                 </p>
               </div>
             </div>
@@ -113,7 +120,7 @@ export const AuthPages: React.FC = () => {
               <div>
                 <h3 className="font-semibold">Real-time Chat</h3>
                 <p className="text-sm text-muted-foreground">
-                  Instant messaging with your study partners
+                  Instant messaging with your peers
                 </p>
               </div>
             </div>
@@ -258,6 +265,14 @@ export const AuthPages: React.FC = () => {
                     <p className="text-xs text-muted-foreground">
                       Password must be at least 8 characters with uppercase, lowercase, number, and special character.
                     </p>
+                  )}
+                  {isLogin && (
+                    <Link
+                      to="/forgot-password"
+                      className="inline-block text-left text-sm font-medium text-[#0095F6] hover:underline cursor-pointer"
+                    >
+                      Forgot password?
+                    </Link>
                   )}
                 </div>
 

@@ -101,7 +101,7 @@ export class SearchService {
         tags,
         likes_count,
         comments_count,
-        profiles:user_id (
+        user_profiles:user_id (
           display_name,
           avatar_url
         )
@@ -130,18 +130,18 @@ export class SearchService {
       title: post.title || post.content.substring(0, 100) + '...',
       content: post.content,
       description: post.content,
-      avatar_url: (post.profiles as any)?.avatar_url,
+      avatar_url: (post.user_profiles as any)?.avatar_url,
       created_at: post.created_at,
       tags: post.tags,
       likes_count: post.likes_count,
       comments_count: post.comments_count,
       relevance_score: 1,
       author: {
-        display_name: (post.profiles as any)?.display_name || 'Anonymous',
-        avatar_url: (post.profiles as any)?.avatar_url
+        display_name: (post.user_profiles as any)?.display_name || 'Anonymous',
+        avatar_url: (post.user_profiles as any)?.avatar_url
       },
       metadata: {
-        author: (post.profiles as any)?.display_name,
+        author: (post.user_profiles as any)?.display_name,
         likes: post.likes_count,
         comments: post.comments_count,
         tags: post.tags
@@ -153,7 +153,7 @@ export class SearchService {
 
   private static async searchUsers(query: string, filters: SearchFilters, page: number, limit: number) {
     let queryBuilder = supabase
-      .from('profiles')
+      .from('user_profiles' as any)
       .select(`
         user_id,
         display_name,

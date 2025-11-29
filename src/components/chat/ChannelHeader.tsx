@@ -52,9 +52,7 @@ export const ChannelHeader: React.FC<ChannelHeaderProps> = ({
   };
 
   const getHeaderDescription = () => {
-    if (channel?.topic) {
-      return channel.topic;
-    } else if (channel?.description) {
+    if (channel?.description) {
       return channel.description;
     }
     return null;
@@ -70,16 +68,6 @@ export const ChannelHeader: React.FC<ChannelHeaderProps> = ({
               <h1 className="font-semibold truncate">
                 {getHeaderTitle()}
               </h1>
-              {channel?.is_private && (
-                <Badge variant="outline" className="text-xs">
-                  Private
-                </Badge>
-              )}
-              {channel?.slowmode_seconds && channel.slowmode_seconds > 0 && (
-                <Badge variant="outline" className="text-xs">
-                  Slow Mode
-                </Badge>
-              )}
             </div>
             {getHeaderDescription() && (
               <p className="text-sm text-muted-foreground truncate">

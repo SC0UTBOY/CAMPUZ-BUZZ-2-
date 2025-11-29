@@ -16,11 +16,7 @@ CampuzBuzz is a modern, full-stack social media web app built to connect college
 - Tabs for Posts | Study Groups | Events
 
 ### ✍️ Post Creation
-- ✅ Text posts with hashtags and mentions
-- ✅ Photo posts with image upload to Supabase Storage
-- ✅ Like system with duplicate prevention
-- ✅ Delete functionality for post owners
-- ✅ Comments system with real-time updates
+- Text, image, and file upload support
 - Tag users or study groups
 - Poll and Q&A post formats
 

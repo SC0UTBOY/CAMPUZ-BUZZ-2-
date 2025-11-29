@@ -241,22 +241,39 @@ export const FixedUpdatedEnhancedPostCard: React.FC<FixedUpdatedEnhancedPostCard
           </h2>
         )}
 
-        {/* Content */}
-        <div className="mb-4">
-          <div className="text-foreground leading-relaxed">
-            {post.content}
+        {/* Hashtags - Instagram style (above image) */}
+        {post.image_url && post.content && (
+          <div className="text-foreground mb-3">
+            {post.content.match(/#\w+/g)?.join(' ') || ''}
           </div>
-        </div>
+        )}
 
         {/* Image */}
         {post.image_url && (
-          <div className="rounded-lg overflow-hidden bg-muted mb-4">
-            <img
-              src={post.image_url}
-              alt={post.title || post.content || 'Post content'}
-              className="w-full max-h-96 object-cover cursor-pointer hover:opacity-95 transition-opacity"
-              loading="lazy"
-            />
+          <>
+            <div className="rounded-lg overflow-hidden bg-muted mb-4">
+              <img
+                src={post.image_url}
+                alt={post.title || post.content || 'Post content'}
+                className="w-full max-h-96 object-cover cursor-pointer hover:opacity-95 transition-opacity"
+                loading="lazy"
+              />
+            </div>
+
+            {/* Instagram-style caption with username */}
+            <div className="mb-4 mt-3 text-sm">
+              <span className="font-semibold text-foreground mr-2">@{post.author?.display_name || 'user'}</span>
+              <span className="text-foreground leading-relaxed">{post.content.replace(/#\w+/g, '').trim()}</span>
+            </div>
+          </>
+        )}
+
+        {/* For non-photo posts, show content normally */}
+        {!post.image_url && (
+          <div className="mb-4">
+            <div className="text-foreground leading-relaxed">
+              {post.content}
+            </div>
           </div>
         )}
 

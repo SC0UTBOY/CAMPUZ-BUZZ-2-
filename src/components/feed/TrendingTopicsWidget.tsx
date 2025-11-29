@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { TrendingUp, Hash, Users, MessageCircle } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { SearchService } from '@/services/searchService';
+import { useToast } from '@/hooks/use-toast';
 
 interface TrendingTopicsWidgetProps {
   onTopicClick?: (topic: string) => void;
@@ -14,6 +15,8 @@ interface TrendingTopicsWidgetProps {
 export const TrendingTopicsWidget: React.FC<TrendingTopicsWidgetProps> = ({
   onTopicClick
 }) => {
+  const { toast } = useToast();
+  
   const { data: trendingTopics, isLoading } = useQuery({
     queryKey: ['trending-topics'],
     queryFn: () => SearchService.getTrendingTopics(8),
@@ -25,6 +28,31 @@ export const TrendingTopicsWidget: React.FC<TrendingTopicsWidgetProps> = ({
     queryFn: () => SearchService.getRecommendedCommunities(3),
     staleTime: 30 * 60 * 1000, // 30 minutes
   });
+
+  const handleJoinCommunity = async (communityId: string) => {
+    try {
+      console.log("JOIN ID SENT =", communityId);
+      
+      const { joinCommunity } = await import('@/services/communityActions');
+      const result = await joinCommunity(communityId);
+      
+      if (!result.success) {
+        throw result.error || new Error("Failed to join community");
+      }
+      
+      toast({
+        title: "✅ Joined community!",
+        description: "You are now a member of this community."
+      });
+    } catch (error: any) {
+      console.error('❌ Join error:', error);
+      toast({
+        title: "Failed to join",
+        description: error?.message || "An error occurred while joining the community.",
+        variant: "destructive"
+      });
+    }
+  };
 
   if (isLoading) {
     return (
@@ -123,7 +151,11 @@ export const TrendingTopicsWidget: React.FC<TrendingTopicsWidgetProps> = ({
                       )}
                     </div>
                   </div>
-                  <Button variant="outline" size="sm">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => handleJoinCommunity(community.id)}
+                  >
                     Join
                   </Button>
                 </div>

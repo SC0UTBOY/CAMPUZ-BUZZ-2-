@@ -1,14 +1,14 @@
 
 import React, { useState } from 'react';
-import { Bell, Search, Plus, Menu, Sun, Moon } from 'lucide-react';
+import { Search, Plus, Menu, Sun, Moon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { EnhancedCreatePostModal } from '@/components/posts/EnhancedCreatePostModal';
-import { FixedPhotoPostModal } from '@/components/posts/FixedPhotoPostModal';
 import { useToast } from '@/hooks/use-toast';
-import { useSimplePosts } from '@/hooks/useSimplePosts';
+import { optimizedPostsService } from '@/services/optimizedPostsService';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 
 interface EnhancedTopBarProps {
   onMobileMenuToggle?: () => void;
@@ -24,18 +24,28 @@ export const EnhancedTopBar: React.FC<EnhancedTopBarProps> = ({
   const { user } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { toast } = useToast();
-  const { createPost, isCreating } = useSimplePosts();
   const [showCreatePost, setShowCreatePost] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
 
   const handleCreatePost = async (postData: any) => {
     try {
-      console.log('TopBar: Creating post with data:', postData);
-      await createPost(postData);
+      setIsCreating(true);
+      await optimizedPostsService.createPost(postData);
       setShowCreatePost(false);
       onPostCreated?.();
+      toast({
+        title: "Post created!",
+        description: "Your post has been shared successfully."
+      });
     } catch (error) {
       console.error('Error creating post:', error);
-      // Error handling is done in the hook
+      toast({
+        title: "Error creating post",
+        description: "Please try again later.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -99,10 +109,7 @@ export const EnhancedTopBar: React.FC<EnhancedTopBarProps> = ({
             </Button>
 
             {/* Notifications */}
-            <Button variant="ghost" size="sm" className="relative">
-              <Bell className="h-5 w-5" />
-              <span className="absolute -top-1 -right-1 h-3 w-3 bg-red-500 rounded-full text-xs"></span>
-            </Button>
+            <NotificationBell />
 
             {/* Search Button (mobile only) */}
             <Button variant="ghost" size="sm" className="md:hidden">
@@ -121,7 +128,7 @@ export const EnhancedTopBar: React.FC<EnhancedTopBarProps> = ({
       </header>
 
       {/* Create Post Modal */}
-      <FixedPhotoPostModal
+      <EnhancedCreatePostModal
         open={showCreatePost}
         onOpenChange={setShowCreatePost}
         onSubmit={handleCreatePost}

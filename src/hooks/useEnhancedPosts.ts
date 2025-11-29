@@ -111,8 +111,6 @@ export const useEnhancedPosts = () => {
           is_saved: userSaves.includes(post.id),
           user_reaction: userReactions[post.id],
           reactions: safeParseReactions(post.reactions),
-          hashtags: [],
-          mentions: [],
           tags: post.tags || [],
           image_url: validImageUrl, // Use validated URL
           profiles: Array.isArray(post.profiles) ? post.profiles[0] : post.profiles || {
@@ -142,12 +140,8 @@ export const useEnhancedPosts = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
-      // Validate image URL before creating post
-      const validImageUrl = ImageService.validateImageUrl(postData.image_url);
-      
-      if (postData.image_url && !validImageUrl) {
-        console.warn('Invalid image URL provided for new post:', postData.image_url);
-      }
+      // Use the image URL from postData (already uploaded to Supabase Storage)
+      const imageUrl = postData.image_url || postData.image;
 
       const { data, error } = await supabase
         .from('posts')
@@ -155,11 +149,11 @@ export const useEnhancedPosts = () => {
           user_id: user.id,
           content: postData.content,
           title: postData.title,
-          post_type: postData.post_type,
-          visibility: postData.visibility,
+          post_type: postData.post_type || 'text',
+          visibility: postData.visibility || 'public',
           tags: postData.tags || [],
-          image_url: validImageUrl, // Use validated URL
-          reactions: {}
+          image_url: imageUrl,
+          reactions: {},
         })
         .select(`
           *,
@@ -175,6 +169,7 @@ export const useEnhancedPosts = () => {
         .single();
 
       if (error) throw error;
+
 
       const newPost: EnhancedPost = {
         ...data,

@@ -33,11 +33,9 @@ export interface Post {
   created_at: string;
   updated_at: string;
   visibility: 'public' | 'friends' | 'private';
-  hashtags?: string[];
   location?: string;
-  mentions?: string[];
   reactions: PostReactions;
-  profiles?: Profile | Profile[];
+  user_profiles?: Profile | Profile[];
   // Additional fields that may come from database
   community_id?: string;
   file_name?: string;
@@ -60,7 +58,6 @@ export interface EnhancedPostData extends Post {
 export interface PostFilter {
   type?: 'text' | 'image' | 'video' | 'poll';
   tags?: string[];
-  hashtags?: string[];
   author?: string;
   dateRange?: {
     start: Date;
@@ -76,7 +73,6 @@ export interface PostCreationData {
   post_type: 'text' | 'image' | 'video' | 'poll';
   images?: File[];
   tags?: string[];
-  mentions?: string[];
   location?: string;
   visibility: 'public' | 'friends' | 'private';
   poll_options?: string[];
@@ -111,12 +107,10 @@ export interface DatabasePost {
   created_at: string;
   updated_at: string;
   visibility: string;
-  hashtags?: string[];
-  mentions?: string[];
   community_id?: string;
   file_name?: string;
   file_url?: string;
   is_pinned?: boolean;
   reactions?: any; // JSON from database
-  profiles?: any;
+  user_profiles?: any;
 }

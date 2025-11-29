@@ -128,7 +128,7 @@ export const PostTestRunner = () => {
     const postData = {
       content: 'Test post with image upload',
       title: 'Test Image Post',
-      post_type: 'image' as const,
+      post_type: 'text' as const,
       user_id: user.id,
       visibility: 'public' as const,
       image_url: uploadResult.url,

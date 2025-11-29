@@ -9,6 +9,7 @@ import { TrendingUp, Users, Calendar, Hash } from 'lucide-react';
 import { AdvancedSearchBar } from '@/components/search/AdvancedSearchBar';
 import { SearchResults } from '@/components/search/SearchResults';
 import { useAdvancedSearch } from '@/hooks/useAdvancedSearch';
+import { useToast } from '@/hooks/use-toast';
 
 const Explore: React.FC = () => {
   const {
@@ -23,6 +24,35 @@ const Explore: React.FC = () => {
     updateFilters,
     clearSearch
   } = useAdvancedSearch();
+  const { toast } = useToast();
+
+  const handleJoinCommunity = async (communityId: string) => {
+    try {
+      console.log("JOIN ID SENT =", communityId);
+      
+      // Import the clean join function
+      const { joinCommunity } = await import('@/services/communityActions');
+      
+      const result = await joinCommunity(communityId);
+      
+      if (!result.success) {
+        throw result.error || new Error("Failed to join community");
+      }
+      
+      toast({
+        title: "✅ Joined community!",
+        description: "You are now a member of this community."
+      });
+      
+    } catch (error: any) {
+      console.error('❌ Join error:', error);
+      toast({
+        title: "Failed to join",
+        description: error?.message || "An error occurred while joining the community.",
+        variant: "destructive"
+      });
+    }
+  };
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -111,7 +141,12 @@ const Explore: React.FC = () => {
                           </div>
                         </div>
                       </div>
-                      <Button size="sm">Join</Button>
+                      <Button 
+                        size="sm"
+                        onClick={() => handleJoinCommunity(community.id)}
+                      >
+                        Join
+                      </Button>
                     </div>
                   ))}
                 </div>

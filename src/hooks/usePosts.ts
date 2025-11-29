@@ -96,9 +96,10 @@ export const usePosts = () => {
           user_id: user?.id!,
           content: postData.content,
           title: postData.title,
-          post_type: postData.type || 'text',
-          tags: postData.tags,
-          image_url: postData.image
+          post_type: postData.post_type || postData.type || 'text',
+          tags: postData.tags || [],
+          image_url: postData.image_url || postData.image,
+          visibility: postData.visibility || 'public',
         })
         .select(`
           id,
@@ -121,6 +122,7 @@ export const usePosts = () => {
         .single();
 
       if (error) throw error;
+
 
       // Transform the response to match our Post interface with proper null checking
       const profileData = data?.profiles && 

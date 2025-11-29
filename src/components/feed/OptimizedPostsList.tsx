@@ -1,29 +1,16 @@
-import React, { memo, useMemo } from 'react';
+import React, { memo, useMemo, useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { EnhancedPostCard } from '@/components/posts/EnhancedPostCard';
+import { PostCard } from '@/components/posts/PostCard';
 import { useInfinitePagination } from '@/hooks/useInfinitePagination';
 import { usePerformanceMonitor } from '@/hooks/usePerformanceMonitor';
 import { analyticsService } from '@/services/analyticsService';
-import { supabase } from '@/integrations/supabase/client';
+import { PostsService, PostData } from '@/services/postsService';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, RefreshCw } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
-interface Post {
-  id: string;
-  content: string;
-  created_at: string;
-  user_id: string;
-  likes_count: number;
-  comments_count: number;
-  image_url?: string;
-  title?: string;
-  profiles: {
-    display_name: string;
-    avatar_url?: string;
-    major?: string;
-  };
-}
+// Using PostData from PostsService
 
 // Memoized post skeleton component
 const PostSkeleton = memo(() => (
@@ -58,76 +45,19 @@ interface OptimizedPostsListProps {
 }
 
 export const OptimizedPostsList: React.FC<OptimizedPostsListProps> = ({ className }) => {
+  const { user } = useAuth();
   usePerformanceMonitor('OptimizedPostsList');
 
-  // Memoized fetch function with enhanced error handling
-  const fetchPosts = useMemo(() => async (page: number, limit: number): Promise<Post[]> => {
-    try {
-      const { data: postsData, error: postsError } = await supabase
-        .from('posts')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .range((page - 1) * limit, page * limit - 1);
-
-      if (postsError) {
-        console.error('Posts fetch error:', postsError);
-        throw postsError;
-      }
-
-      if (!postsData || postsData.length === 0) {
-        return [];
-      }
-
-      // Get unique user IDs
-      const userIds = [...new Set(postsData.map(post => post.user_id))];
-
-      // Get profiles with error handling
-      const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('user_id, display_name, avatar_url, major')
-        .in('user_id', userIds);
-
-      if (profilesError) {
-        console.warn('Profiles fetch error:', profilesError);
-        // Continue without profiles rather than failing completely
-      }
-
-      // Create profiles map
-      const profilesMap = new Map();
-      if (profilesData) {
-        profilesData.forEach(profile => {
-          profilesMap.set(profile.user_id, profile);
-        });
-      }
-
-      // Combine data with fallback for missing profiles
-      return postsData
-        .map(post => {
-          const profile = profilesMap.get(post.user_id) || {
-            display_name: 'Anonymous User',
-            avatar_url: undefined,
-            major: undefined
-          };
-
-          return {
-            id: post.id,
-            content: post.content || '',
-            created_at: post.created_at,
-            user_id: post.user_id,
-            likes_count: post.likes_count || 0,
-            comments_count: post.comments_count || 0,
-            image_url: post.image_url,
-            title: post.title,
-            profiles: profile
-          };
-        })
-        .filter(post => post !== null) as Post[];
-        
-    } catch (error) {
-      console.error('Error fetching posts:', error);
-      throw error;
-    }
-  }, []);
+// Memoized fetch function with enhanced error handling
+const fetchPosts = useMemo(() => async (page: number, limit: number): Promise<PostData[]> => {
+  try {
+    const data = await PostsService.getPosts(limit, (page - 1) * limit);
+    return data;
+  } catch (error) {
+    console.error('Error fetching posts:', error);
+    throw error;
+  }
+}, [user]);
 
   const {
     data: posts,
@@ -147,55 +77,8 @@ export const OptimizedPostsList: React.FC<OptimizedPostsListProps> = ({ classNam
     analyticsService.trackPageView('posts_feed');
   }, []);
 
-  // Convert Post to EnhancedPostData format
-  const convertToEnhancedPostData = (post: Post) => ({
-    ...post,
-    post_type: (post.image_url ? 'image' : 'text') as 'text' | 'image' | 'video' | 'poll',
-    visibility: 'public' as 'public' | 'friends' | 'private',
-    tags: [],
-    shares_count: 0,
-    saves_count: 0,
-    hashtags: [],
-    mentions: [],
-    reactions: {},
-    updated_at: post.created_at,
-    author: {
-      id: post.user_id,
-      display_name: post.profiles.display_name,
-      avatar_url: post.profiles.avatar_url,
-      major: post.profiles.major,
-      year: undefined
-    },
-    is_liked: false,
-    is_saved: false,
-    user_reaction: undefined,
-    profiles: {
-      id: post.user_id,
-      display_name: post.profiles.display_name,
-      avatar_url: post.profiles.avatar_url,
-      major: post.profiles.major,
-      year: undefined
-    }
-  });
-
-  const handleReact = (postId: string, reactionType: string) => {
-    console.log('React to post:', postId, reactionType);
-    analyticsService.trackPostLiked(postId);
-  };
-
-  const handleSave = (postId: string) => {
-    console.log('Save post:', postId);
-    analyticsService.trackEvent('post_saved', { post_id: postId });
-  };
-
-  const handleShare = (postId: string) => {
-    console.log('Share post:', postId);
-    analyticsService.trackEvent('post_shared', { post_id: postId });
-  };
-
-  const handleComment = (postId: string) => {
-    console.log('Comment on post:', postId);
-    analyticsService.trackEvent('comment_opened', { post_id: postId });
+  const handlePostUpdate = () => {
+    refresh();
   };
 
   if (error && posts.length === 0) {
@@ -218,14 +101,10 @@ export const OptimizedPostsList: React.FC<OptimizedPostsListProps> = ({ classNam
     <div className={className}>
       {/* Posts list */}
       {posts.map(post => (
-        <EnhancedPostCard
+        <PostCard
           key={post.id}
-          post={convertToEnhancedPostData(post)}
-          onReact={handleReact}
-          onSave={handleSave}
-          onShare={handleShare}
-          onComment={handleComment}
-          className="mb-6"
+          post={post}
+          onPostUpdate={handlePostUpdate}
         />
       ))}
 

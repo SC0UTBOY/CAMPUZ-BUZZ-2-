@@ -29,7 +29,7 @@ class SecurityService {
 
   // Log security events with enhanced metadata
   async logSecurityEvent(
-    eventType: string, 
+    eventType: string,
     metadata: Record<string, any> = {},
     severity: 'low' | 'medium' | 'high' = 'low'
   ): Promise<void> {
@@ -70,9 +70,9 @@ class SecurityService {
       if (!user) return false;
 
       const { data: profile } = await supabase
-        .from('profiles')
+        .from('user_profiles' as any)
         .select('role')
-        .eq('user_id', user.id)
+        .eq('id', user.id)
         .single();
 
       if (!profile) return false;
@@ -104,27 +104,27 @@ class SecurityService {
       switch (action) {
         case 'moderate_content':
           return await this.hasRole('moderator');
-        
+
         case 'manage_users':
           return await this.hasRole('admin');
-        
+
         case 'delete_any_post':
           return await this.hasRole('moderator');
-        
+
         case 'ban_user':
           return await this.hasRole('admin');
-        
+
         case 'create_community':
           return await this.hasRole('student'); // All authenticated users can create communities
-        
+
         case 'manage_community':
           if (!resourceId) return false;
           return await this.canManageCommunity(resourceId);
-        
+
         case 'moderate_community':
           if (!resourceId) return false;
           return await this.canModerateCommunity(resourceId);
-        
+
         default:
           return false;
       }
@@ -193,7 +193,7 @@ class SecurityService {
 
       // Check for suspicious patterns
       const suspiciousPatterns = await this.detectSuspiciousActivity(activityData);
-      
+
       if (suspiciousPatterns.length > 0) {
         await this.logSecurityEvent('suspicious_activity_detected', {
           patterns: suspiciousPatterns,

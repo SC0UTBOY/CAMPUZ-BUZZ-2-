@@ -1,21 +1,37 @@
 
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { enhancedCommunitiesService, type EnhancedCommunity, type CommunityCreateData } from '@/services/enhancedCommunitiesService';
-import { Search, Plus, Users, Lock, Globe, Calendar } from 'lucide-react';
+import { Search, Plus, Users, Lock, Globe, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { joinCommunity, leaveCommunity } from '@/services/communityActions';
+import { isMember } from '@/lib/community/isMember';
 
-const CommunityCard: React.FC<{ community: EnhancedCommunity; onJoin: (id: string) => void; onLeave: (id: string) => void }> = ({
+interface Community {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  is_private: boolean;
+  member_count: number;
+  created_by: string;
+  isJoined?: boolean;
+}
+
+const CommunityCard: React.FC<{ community: Community; onJoin: (id: string) => void; onLeave: (id: string) => void; onDelete: (id: string) => void; onClick: () => void; currentUserId: string | null }> = ({
   community,
   onJoin,
-  onLeave
+  onLeave,
+  onDelete,
+  onClick,
+  currentUserId
 }) => {
   return (
     <motion.div
@@ -24,12 +40,11 @@ const CommunityCard: React.FC<{ community: EnhancedCommunity; onJoin: (id: strin
       exit={{ opacity: 0, y: -20 }}
       transition={{ duration: 0.2 }}
     >
-      <Card className="hover:shadow-md transition-shadow">
+      <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={onClick}>
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between">
             <div className="flex items-center space-x-3">
               <Avatar className="h-12 w-12">
-                <AvatarImage src={community.avatar_url} alt={community.name} />
                 <AvatarFallback>{community.name.substring(0, 2).toUpperCase()}</AvatarFallback>
               </Avatar>
               <div>
@@ -53,13 +68,30 @@ const CommunityCard: React.FC<{ community: EnhancedCommunity; onJoin: (id: strin
                   {community.category}
                 </Badge>
               )}
-              <Button
-                size="sm"
-                variant={community.isJoined ? "outline" : "default"}
-                onClick={() => community.isJoined ? onLeave(community.id) : onJoin(community.id)}
-              >
-                {community.isJoined ? "Leave" : "Join"}
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant={community.isJoined ? "outline" : "default"}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    community.isJoined ? onLeave(community.id) : onJoin(community.id);
+                  }}
+                >
+                  {community.isJoined ? "Leave" : "Join"}
+                </Button>
+                {community.created_by === currentUserId && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(community.id);
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         </CardHeader>
@@ -67,11 +99,6 @@ const CommunityCard: React.FC<{ community: EnhancedCommunity; onJoin: (id: strin
           <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
             {community.description}
           </p>
-          {community.welcome_message && (
-            <div className="bg-muted/50 rounded-lg p-3 text-xs text-muted-foreground">
-              <strong>Welcome:</strong> {community.welcome_message}
-            </div>
-          )}
         </CardContent>
       </Card>
     </motion.div>
@@ -83,13 +110,11 @@ const CreateCommunityModal: React.FC<{
   onOpenChange: (open: boolean) => void;
   onCommunityCreated: () => void;
 }> = ({ open, onOpenChange, onCommunityCreated }) => {
-  const [formData, setFormData] = useState<CommunityCreateData>({
+  const [formData, setFormData] = useState({
     name: '',
     description: '',
     category: '',
-    is_private: false,
-    welcome_message: '',
-    rules: ''
+    is_private: false
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
@@ -100,7 +125,39 @@ const CreateCommunityModal: React.FC<{
 
     setIsSubmitting(true);
     try {
-      await enhancedCommunitiesService.createCommunity(formData);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      // Create the community
+      const { data: newCommunity, error: createError } = await supabase
+        .from('communities')
+        .insert({
+          name: formData.name,
+          description: formData.description,
+          category: formData.category,
+          is_private: formData.is_private,
+          created_by: user.id,
+          member_count: 0 // Will be updated by trigger
+        })
+        .select()
+        .single();
+
+      if (createError) throw createError;
+
+      // Add creator as the first member
+      const { error: memberError } = await supabase
+        .from('community_members')
+        .insert({
+          community_id: newCommunity.id,
+          user_id: user.id,
+          joined_at: new Date().toISOString()
+        });
+
+      if (memberError) {
+        console.error('Error adding creator as member:', memberError);
+        // Don't throw - community is created, just log the error
+      }
+
       toast({
         title: "Community created!",
         description: "Your community has been created successfully."
@@ -111,15 +168,13 @@ const CreateCommunityModal: React.FC<{
         name: '',
         description: '',
         category: '',
-        is_private: false,
-        welcome_message: '',
-        rules: ''
+        is_private: false
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating community:', error);
       toast({
-        title: "Error",
-        description: "Failed to create community. Please try again.",
+        title: "Error Creating Community",
+        description: error.message || 'Failed to create community.',
         variant: "destructive"
       });
     } finally {
@@ -152,7 +207,7 @@ const CreateCommunityModal: React.FC<{
             <div>
               <label className="block text-sm font-medium mb-1">Description</label>
               <textarea
-                className="w-full min-h-[80px] px-3 py-2 border border-input rounded-md resize-none"
+                className="w-full min-h-[80px] px-3 py-2 bg-slate-900 text-slate-200 border border-slate-700 rounded-md resize-none focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
                 value={formData.description}
                 onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                 placeholder="Describe your community"
@@ -164,14 +219,6 @@ const CreateCommunityModal: React.FC<{
                 value={formData.category}
                 onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
                 placeholder="e.g., Academic, Social, Professional"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Welcome Message</label>
-              <Input
-                value={formData.welcome_message}
-                onChange={(e) => setFormData(prev => ({ ...prev, welcome_message: e.target.value }))}
-                placeholder="Welcome new members with a message"
               />
             </div>
             <div className="flex items-center space-x-2">
@@ -207,12 +254,14 @@ const CreateCommunityModal: React.FC<{
 };
 
 export default function Communities() {
-  const [communities, setCommunities] = useState<EnhancedCommunity[]>([]);
-  const [filteredCommunities, setFilteredCommunities] = useState<EnhancedCommunity[]>([]);
+  const navigate = useNavigate();
+  const [communities, setCommunities] = useState<Community[]>([]);
+  const [filteredCommunities, setFilteredCommunities] = useState<Community[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const { toast } = useToast();
 
   const categories = ['Academic', 'Social', 'Professional', 'Sports', 'Arts', 'Technology'];
@@ -225,13 +274,65 @@ export default function Communities() {
     filterCommunities();
   }, [communities, searchQuery, selectedCategory]);
 
+  // Realtime subscription for community_members changes
+  useEffect(() => {
+    const channel = supabase
+      .channel('community-members-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'community_members',
+        },
+        (payload) => {
+          console.log("Realtime event:", payload);
+          loadCommunities(); // refresh community list and member counts
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
   const loadCommunities = async () => {
     try {
       setLoading(true);
-      const data = await enhancedCommunitiesService.getCommunities();
-      setCommunities(data);
+
+      // Fetch communities with actual schema
+      const { data, error } = await supabase
+        .from("communities")
+        .select("*")
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      // Get current user for membership status
+      const { data: { user } } = await supabase.auth.getUser();
+      const userId = user?.id;
+      setCurrentUserId(userId || null);
+
+      // Add membership status
+      const communitiesWithStatus = await Promise.all(
+        (data || []).map(async (community) => {
+          let isJoined = false;
+
+          if (userId) {
+            isJoined = await isMember(community.id);
+          }
+
+          return {
+            ...community,
+            isJoined
+          };
+        })
+      );
+
+      setCommunities(communitiesWithStatus);
     } catch (error) {
-      console.error('Error loading communities:', error);
+      console.error('❌ Error loading communities:', error);
       toast({
         title: "Error",
         description: "Failed to load communities.",
@@ -261,26 +362,29 @@ export default function Communities() {
 
   const handleJoinCommunity = async (communityId: string) => {
     try {
-      const user = await supabase.auth.getUser();
-      if (!user.data.user) return;
+      const result = await joinCommunity(communityId);
 
-      await enhancedCommunitiesService.joinCommunity(communityId, user.data.user.id);
-      setCommunities(prev =>
-        prev.map(community =>
-          community.id === communityId
-            ? { ...community, isJoined: true, member_count: community.member_count + 1 }
-            : community
-        )
-      );
+      if (!result.success || result.error) {
+        toast({
+          title: "Failed to join",
+          description: (typeof result.error === 'string' ? result.error : (result.error as any)?.message) || "Failed to join community",
+          variant: "destructive"
+        });
+        return;
+      }
+
       toast({
-        title: "Joined community!",
+        title: "Joined!",
         description: "You are now a member of this community."
       });
-    } catch (error) {
-      console.error('Error joining community:', error);
+
+      await loadCommunities();
+
+    } catch (error: any) {
+      console.error('Join error:', error);
       toast({
-        title: "Error",
-        description: "Failed to join community.",
+        title: "Failed to join",
+        description: error?.message || "An error occurred while joining the community.",
         variant: "destructive"
       });
     }
@@ -288,26 +392,61 @@ export default function Communities() {
 
   const handleLeaveCommunity = async (communityId: string) => {
     try {
-      const user = await supabase.auth.getUser();
-      if (!user.data.user) return;
+      const result = await leaveCommunity(communityId);
 
-      await enhancedCommunitiesService.leaveCommunity(communityId, user.data.user.id);
-      setCommunities(prev =>
-        prev.map(community =>
-          community.id === communityId
-            ? { ...community, isJoined: false, member_count: Math.max(0, community.member_count - 1) }
-            : community
-        )
-      );
+      if (!result.success || result.error) {
+        toast({
+          title: "Failed to leave",
+          description: (typeof result.error === 'string' ? result.error : (result.error as any)?.message) || "Failed to leave community",
+          variant: "destructive"
+        });
+        return;
+      }
+
       toast({
-        title: "Left community",
+        title: "Left",
         description: "You are no longer a member of this community."
       });
-    } catch (error) {
+
+      await loadCommunities();
+
+    } catch (error: any) {
       console.error('Error leaving community:', error);
       toast({
         title: "Error",
         description: "Failed to leave community.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleDeleteCommunity = async (communityId: string) => {
+    if (!confirm("Are you sure? This will delete the community for everyone.")) return;
+
+    try {
+      const { error } = await supabase
+        .from("communities")
+        .delete()
+        .eq("id", communityId);
+
+      if (error) {
+        toast({
+          title: "Error",
+          description: "Failed to delete community.",
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Success",
+          description: "Community deleted successfully."
+        });
+        loadCommunities(); // Refresh UI
+      }
+    } catch (error: any) {
+      console.error('Error deleting community:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete community.",
         variant: "destructive"
       });
     }
@@ -404,6 +543,9 @@ export default function Communities() {
                   community={community}
                   onJoin={handleJoinCommunity}
                   onLeave={handleLeaveCommunity}
+                  onDelete={handleDeleteCommunity}
+                  onClick={() => navigate(`/communities/${community.id}`)}
+                  currentUserId={currentUserId}
                 />
               ))}
             </AnimatePresence>

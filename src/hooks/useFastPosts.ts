@@ -26,56 +26,90 @@ export const useFastPosts = () => {
   const queryClient = useQueryClient();
 
   // Fetch posts with user interaction data
-  const { 
-    data: posts = [], 
-    isLoading: loading, 
+  const {
+    data: posts = [],
+    isLoading: loading,
     error,
-    refetch 
+    refetch
   } = useQuery({
     queryKey: ['fast-posts'],
     queryFn: async () => {
+      // 1. Fetch posts without join
       const { data: postsData, error } = await supabase
         .from('posts')
-        .select(`
-          *,
-          profiles:user_id (
-            id,
-            display_name,
-            avatar_url
-          )
-        `)
+        .select('*')
         .order('created_at', { ascending: false })
         .limit(20);
 
       if (error) throw error;
+      if (!postsData?.length) return [];
 
-      // Get user's likes for these posts
+      // 2. Fetch user data from auth.users to get metadata
+      const userIds = [...new Set(postsData.map(p => p.user_id))];
+
+      // Fetch auth users data using admin API or RPC
+      // Since we can't directly query auth.users, we'll use the profiles view
+      // but also fetch from auth metadata for the current user
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('id, display_name, avatar_url, username')
+        .in('id', userIds);
+
+      // Create a map of profiles
+      const profilesMap = new Map(profilesData?.map(p => [p.id, p]));
+
+      // For each user without profile data, try to get from auth metadata
+      // This is a workaround since profiles view might not have all data
+      for (const userId of userIds) {
+        if (!profilesMap.has(userId) || !profilesMap.get(userId)?.display_name) {
+          // Try to get user data from auth - this will only work for the current user
+          if (user && user.id === userId) {
+            const { data: { user: authUser } } = await supabase.auth.getUser();
+            if (authUser) {
+              profilesMap.set(userId, {
+                id: authUser.id,
+                display_name: authUser.user_metadata?.display_name ||
+                  authUser.user_metadata?.full_name ||
+                  authUser.email?.split('@')[0] ||
+                  'User',
+                avatar_url: authUser.user_metadata?.avatar_url,
+                username: authUser.user_metadata?.username
+              });
+            }
+          }
+        }
+      }
+
+      // 3. Get user's likes for these posts
       let userLikes: string[] = [];
-      if (user && postsData?.length) {
+      if (user) {
         const { data: likesData } = await supabase
           .from('likes')
           .select('post_id')
           .eq('user_id', user.id)
           .in('post_id', postsData.map(p => p.id));
-        
+
         userLikes = likesData?.map(l => l.post_id) || [];
       }
 
-      return postsData?.map(post => ({
-        id: post.id,
-        content: post.content,
-        created_at: post.created_at,
-        image_url: post.image_url,
-        likes_count: post.likes_count || 0,
-        comments_count: post.comments_count || 0,
-        is_liked: userLikes.includes(post.id),
-        user_id: post.user_id,
-        author: {
-          id: post.profiles?.id || post.user_id,
-          display_name: post.profiles?.display_name || 'Anonymous',
-          avatar_url: post.profiles?.avatar_url
-        }
-      })) || [];
+      return postsData.map(post => {
+        const profile = profilesMap.get(post.user_id);
+        return {
+          id: post.id,
+          content: post.content,
+          created_at: post.created_at,
+          image_url: post.image_url,
+          likes_count: post.likes_count || 0,
+          comments_count: post.comments_count || 0,
+          is_liked: userLikes.includes(post.id),
+          user_id: post.user_id,
+          author: {
+            id: post.user_id,
+            display_name: profile?.display_name || profile?.username || 'Anonymous',
+            avatar_url: profile?.avatar_url
+          }
+        };
+      });
     },
     enabled: !!user,
     staleTime: 30000, // 30 seconds
@@ -88,6 +122,21 @@ export const useFastPosts = () => {
     mutationFn: async (postData: { content: string; image_url?: string }) => {
       if (!user) throw new Error('User not authenticated');
 
+      // First, ensure user metadata has display_name
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      let displayName = currentUser?.user_metadata?.display_name ||
+        currentUser?.user_metadata?.full_name ||
+        currentUser?.email?.split('@')[0];
+
+      // If no display name in metadata, update it
+      if (!currentUser?.user_metadata?.display_name && displayName) {
+        await supabase.auth.updateUser({
+          data: {
+            display_name: displayName
+          }
+        });
+      }
+
       const { data, error } = await supabase
         .from('posts')
         .insert({
@@ -95,22 +144,23 @@ export const useFastPosts = () => {
           user_id: user.id,
           image_url: postData.image_url,
           post_type: 'text',
-          visibility: 'public'
+          visibility: 'public',
         })
-        .select(`
-          *,
-          profiles:user_id (
-            id,
-            display_name,
-            avatar_url
-          )
-        `)
+        .select()
         .single();
 
       if (error) throw error;
+
       return data;
     },
-    onSuccess: (newPost) => {
+    onSuccess: async (newPost) => {
+      // Get fresh user data for the new post
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      const displayName = currentUser?.user_metadata?.display_name ||
+        currentUser?.user_metadata?.full_name ||
+        currentUser?.email?.split('@')[0] ||
+        'You';
+
       // Add the new post to the beginning of the list
       queryClient.setQueryData(['fast-posts'], (oldPosts: Post[] = []) => [
         {
@@ -123,9 +173,9 @@ export const useFastPosts = () => {
           is_liked: false,
           user_id: newPost.user_id,
           author: {
-            id: newPost.profiles?.id || newPost.user_id,
-            display_name: newPost.profiles?.display_name || user?.user_metadata?.full_name || 'You',
-            avatar_url: newPost.profiles?.avatar_url || user?.user_metadata?.avatar_url
+            id: newPost.user_id,
+            display_name: displayName,
+            avatar_url: currentUser?.user_metadata?.avatar_url
           }
         },
         ...oldPosts
@@ -151,60 +201,70 @@ export const useFastPosts = () => {
     mutationFn: async (postId: string) => {
       if (!user) throw new Error('User not authenticated');
 
-      // Check if already liked
-      const { data: existingLike } = await supabase
+      // Check if already liked - use maybeSingle to avoid errors
+      const { data: existingLike, error: checkError } = await supabase
         .from('likes')
         .select('id')
         .eq('post_id', postId)
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
+
+      if (checkError) throw checkError;
+
+      let isLiked: boolean;
 
       if (existingLike) {
-        // Unlike
-        await supabase
+        // Unlike - remove the like
+        const { error: deleteError } = await supabase
           .from('likes')
           .delete()
-          .eq('id', existingLike.id);
-        return { isLiked: false };
+          .eq('post_id', postId)
+          .eq('user_id', user.id);
+
+        if (deleteError) throw deleteError;
+        isLiked = false;
       } else {
-        // Like
-        await supabase
+        // Like - insert new like (unique constraint prevents duplicates)
+        const { error: insertError } = await supabase
           .from('likes')
           .insert({
             post_id: postId,
             user_id: user.id
           });
-        return { isLiked: true };
-      }
-    },
-    onMutate: async (postId: string) => {
-      // Optimistic update
-      queryClient.setQueryData(['fast-posts'], (oldPosts: Post[] = []) =>
-        oldPosts.map(post =>
-          post.id === postId
-            ? {
-                ...post,
-                is_liked: !post.is_liked,
-                likes_count: post.is_liked ? post.likes_count - 1 : post.likes_count + 1
-              }
-            : post
-        )
-      );
-    },
-    onError: (error, postId) => {
-      // Revert optimistic update
-      queryClient.setQueryData(['fast-posts'], (oldPosts: Post[] = []) =>
-        oldPosts.map(post =>
-          post.id === postId
-            ? {
-                ...post,
-                is_liked: !post.is_liked,
-                likes_count: post.is_liked ? post.likes_count + 1 : post.likes_count - 1
-              }
-            : post
-        )
-      );
 
+        // Handle duplicate key error gracefully
+        if (insertError && insertError.code !== '23505') {
+          throw insertError;
+        }
+        isLiked = true;
+      }
+
+      // Get actual like count from database
+      const { count, error: countError } = await supabase
+        .from('likes')
+        .select('*', { count: 'exact', head: true })
+        .eq('post_id', postId);
+
+      if (countError) throw countError;
+
+      return { isLiked, likeCount: count || 0 };
+    },
+    onSuccess: (result, postId) => {
+      // Update post with actual like count from database
+      queryClient.setQueryData(['fast-posts'], (oldPosts: Post[] = []) =>
+        oldPosts.map(post =>
+          post.id === postId
+            ? {
+              ...post,
+              is_liked: result.isLiked,
+              likes_count: result.likeCount
+            }
+            : post
+        )
+      );
+    },
+    onError: (error: any) => {
+      console.error('Error toggling like:', error);
       toast({
         title: "Error",
         description: "Failed to update like. Please try again.",
